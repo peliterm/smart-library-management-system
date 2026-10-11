@@ -1,24 +1,7 @@
-// ============================================================================
-// LibraryUI.h
-// Smart Library Management System - CPSC 315
-//
-// Console interface. Separated from LibrarySystem so the logic can be tested
-// without simulating keystrokes, and so the interface can be replaced later
-// without touching the data structures.
-//
-// Design rules applied during Module 7 refinement:
-//   1. Numbered options only. The user never has to remember a command word.
-//   2. Every screen shows who is signed in and their role, so a shared
-//      terminal never leaves ambiguity about who is acting.
-//   3. Menus are grouped by frequency, not by module. The operations a
-//      patron performs most often appear first; administrative functions sit
-//      below a separator and are hidden entirely from roles that cannot use
-//      them.
-//   4. Every rejection prints the specific rule that stopped it, sourced from
-//      the Status value the logic layer returns, never a generic failure.
-//   5. Invalid input re-prompts rather than exiting. A stray keystroke should
-//      never end a session.
-// ============================================================================
+// LibraryUI.h - console interface. Holds no data of its own and makes no
+// policy decisions; every rule it enforces is enforced again in
+// LibrarySystem, so a second front end could not bypass one.
+
 #ifndef LIBRARY_UI_H
 #define LIBRARY_UI_H
 
@@ -54,6 +37,8 @@ private:
     void inventoryReport();  // librarian and administrator only
     void overdueReport();    // librarian and administrator only
     void holdsReport();      // librarian and administrator only
+    void storageReport();    // librarian and administrator only
+    void manageFlow();       // librarian and administrator only
 
     // --- helpers ---
     void header(const std::string& screenName) const;

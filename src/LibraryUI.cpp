@@ -1,9 +1,8 @@
-// ============================================================================
 // LibraryUI.cpp
-// Smart Library Management System - CPSC 315
-// ============================================================================
+
 #include "LibraryUI.h"
 #include "DemoFixture.h"
+#include "Huffman.h"
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -80,15 +79,7 @@ bool LibraryUI::isStaff() const {
     return r == Role::LIBRARIAN || r == Role::ADMINISTRATOR;
 }
 
-// ---------------------------------------------------------------------------
-// seedDemoData: delegates to the shared fixture in DemoFixture.cpp.
-//
-// Module 9 change. This function used to hold the seed data inline, which
-// put it out of reach of the test driver: slms_tests does not link the
-// interface layer. That is how the Module 8 dry run ended up with two empty
-// screens. The data now lives in a module both binaries link, and the test
-// driver asserts that it populates every dynamic screen.
-// ---------------------------------------------------------------------------
+// Delegates to the shared fixture, which the test driver also links.
 void LibraryUI::seedDemoData() {
     buildDemoLibrary(lib);
 }
@@ -117,6 +108,7 @@ bool LibraryUI::signInScreen() {
               << "   1002  Priya      (Student)\n"
               << "   2001  A. Rivera  (Librarian)\n"
               << "   3001  Admin      (Administrator)\n\n"
+              << " Password for every demo account: library\n\n"
               << " Enter 0 to exit.\n\n";
 
     while (true) {
@@ -131,11 +123,23 @@ bool LibraryUI::signInScreen() {
         }
         if (id == 0) return false;
 
-        if (lib.accounts().findUser(id) == nullptr) {
+        User* account = lib.accounts().findUser(id);
+        if (account == nullptr) {
             std::cout << "  No account found with ID " << id
                       << ". Check the list above.\n";
             continue;
         }
+
+        // Password check. Until Module 9 this screen took an account ID and
+        // nothing else, so anyone could type the administrator's ID straight
+        // off the demo list. The stored field held a placeholder that nothing
+        // ever read.
+        std::string password = readLine("Password:   ");
+        if (!lib.authenticate(id, password)) {
+            std::cout << "  That password does not match the account.\n";
+            continue;
+        }
+
         currentUserId = id;
         return true;
     }
@@ -163,8 +167,10 @@ void LibraryUI::mainMenu() {
                       << "    8. Overdue report\n"
                       << "    9. Inventory report\n"
                       << "   10. Hold lists\n"
-                      << "\n   11. Sign out\n";
-            high = 11;
+                      << "   11. Storage report\n"
+                      << "   12. Manage catalog and accounts\n"
+                      << "\n   13. Sign out\n";
+            high = 13;
         } else {
             std::cout << "\n   8. Sign out\n";
         }
@@ -174,7 +180,7 @@ void LibraryUI::mainMenu() {
         if (choice == -1) return;
 
         if (!isStaff() && choice == 8)  return;     // student sign out
-        if (isStaff()  && choice == 11) return;     // staff sign out
+        if (isStaff()  && choice == 13) return;     // staff sign out
 
         switch (choice) {
             case 1:  searchCatalog();   break;
@@ -187,18 +193,15 @@ void LibraryUI::mainMenu() {
             case 8:  overdueReport();   break;   // staff only, guarded above
             case 9:  inventoryReport(); break;   // staff only
             case 10: holdsReport();     break;   // staff only
+            case 11: storageReport();   break;   // staff only
+            case 12: manageFlow();      break;   // staff only
             default: break;
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// reserveFlow: join the hold line for a title with no copies on the shelf.
-//
-// The screen only lists titles that are actually out, because reserving an
-// available book is refused by the logic layer and offering the option would
-// be inviting a rejection.
-// ---------------------------------------------------------------------------
+// Join a hold line. Only titles with every copy out are listed: reserving an
+// available book is refused, and offering it would invite a rejection.
 void LibraryUI::reserveFlow() {
     header("RESERVE A TITLE");
 
@@ -249,10 +252,7 @@ void LibraryUI::reserveFlow() {
     pause();
 }
 
-// ---------------------------------------------------------------------------
-// activityFlow: the account's activity stack, newest first, with an undo for
-// the most recent action.
-// ---------------------------------------------------------------------------
+// The account's activity stack, newest first, with an undo for the newest.
 void LibraryUI::activityFlow() {
     header("MY RECENT ACTIVITY");
 
@@ -294,13 +294,171 @@ void LibraryUI::activityFlow() {
     pause();
 }
 
-// ---------------------------------------------------------------------------
-// holdsReport: staff view of every title with a waiting list.
-// ---------------------------------------------------------------------------
+// Staff add and remove for books and accounts. Every operation goes through a
+// guarded LibrarySystem call, so the role check does not depend on this screen
+// being unreachable.
+void LibraryUI::manageFlow() {
+    while (true) {
+        header("MANAGE CATALOG AND ACCOUNTS");
+
+        if (!lib.isStaff(currentUserId)) {
+            std::cout << "\n   "
+                      << statusMessage(Status::NOT_AUTHORIZED) << "\n";
+            pause();
+            return;
+        }
+
+        std::cout << "   1. Add a book\n"
+                  << "   2. Remove a book\n"
+                  << "   3. Add an account\n"
+                  << "   4. Remove an account\n"
+                  << "   5. Back\n\n";
+
+        int choice = readChoice(1, 5);
+        if (choice == -1 || choice == 5) return;
+
+        std::cout << "\n";
+        if (choice == 1) {
+            std::string isbn   = readLine(" ISBN:            ");
+            std::string title  = readLine(" Title:           ");
+            std::string author = readLine(" Author:          ");
+            std::string genre  = readLine(" Genre:           ");
+            std::string copies = readLine(" Copies:          ");
+            std::string year   = readLine(" Year (0 if n/a): ");
+
+            int copyCount = 0, pubYear = 0;
+            std::istringstream(copies) >> copyCount;
+            std::istringstream(year)   >> pubYear;
+
+            if (isbn.empty() || title.empty() || copyCount <= 0) {
+                std::cout << "\n   An ISBN, a title, and at least one copy are "
+                          << "required.\n";
+            } else {
+                Status s = lib.addBook(currentUserId,
+                                       Book(isbn, title, author, genre,
+                                            copyCount, pubYear));
+                std::cout << "\n   "
+                          << (s == Status::OK ? "Added." : statusMessage(s))
+                          << "\n";
+            }
+
+        } else if (choice == 2) {
+            std::string isbn = readLine(" ISBN to remove: ");
+            Status s = lib.removeBook(currentUserId, isbn);
+            std::cout << "\n   "
+                      << (s == Status::OK ? "Removed." : statusMessage(s))
+                      << "\n";
+            if (s == Status::STILL_IN_USE) {
+                std::cout << "   Copies are out or patrons are waiting on it.\n";
+            }
+
+        } else if (choice == 3) {
+            std::string idText = readLine(" Account ID:  ");
+            std::string name   = readLine(" Name:        ");
+            std::string email  = readLine(" Email:       ");
+            std::string pw     = readLine(" Password:    ");
+            std::string roleIn = readLine(" Role [1 student, 2 librarian, "
+                                          "3 administrator]: ");
+
+            int id = 0, roleNum = 1;
+            std::istringstream(idText) >> id;
+            std::istringstream(roleIn) >> roleNum;
+
+            Role role = Role::STUDENT;
+            if (roleNum == 2) role = Role::LIBRARIAN;
+            if (roleNum == 3) role = Role::ADMINISTRATOR;
+
+            if (id <= 0 || name.empty() || pw.empty()) {
+                std::cout << "\n   An ID, a name, and a password are required.\n";
+            } else {
+                Status s = lib.addAccount(currentUserId,
+                                          User(id, name, email, "", role), pw);
+                std::cout << "\n   "
+                          << (s == Status::OK ? "Account created." : statusMessage(s))
+                          << "\n";
+            }
+
+        } else if (choice == 4) {
+            std::string idText = readLine(" Account ID to remove: ");
+            int id = 0;
+            std::istringstream(idText) >> id;
+
+            if (id == currentUserId) {
+                std::cout << "\n   You cannot remove the account you are "
+                          << "signed in to.\n";
+            } else {
+                Status s = lib.removeAccount(currentUserId, id);
+                std::cout << "\n   "
+                          << (s == Status::OK ? "Account removed." : statusMessage(s))
+                          << "\n";
+                if (s == Status::STILL_IN_USE) {
+                    std::cout << "   The account still holds loans or is waiting "
+                              << "on a title.\n";
+                }
+            }
+        }
+        pause();
+    }
+}
+
+// What the catalog costs to store, and what Huffman saves. At demo scale the
+// archive is larger than the source: the frequency table is a fixed cost that
+// six books cannot amortize. The screen shows that rather than hiding it.
+void LibraryUI::storageReport() {
+    header("STORAGE REPORT");
+
+    std::vector<std::string> allowed;
+    Status ok = lib.inventoryReport(currentUserId, allowed);
+    if (ok != Status::OK) {
+        std::cout << "\n   " << statusMessage(ok) << "\n";
+        pause();
+        return;
+    }
+
+    const std::string exported = lib.catalogExport();
+    huffman::Archive archive = huffman::encode(exported);
+    const size_t header_ = archive.storedBytes() - archive.bytes.size();
+
+    std::cout << " Catalog export, Huffman coded.\n\n"
+              << "   Records                " << lib.books().size() << "\n"
+              << "   Export size            " << exported.size() << " bytes\n"
+              << "   Distinct symbols       " << archive.frequencies.size() << "\n"
+              << "   Coded payload          " << archive.bytes.size() << " bytes\n"
+              << "   Frequency table        " << header_ << " bytes\n"
+              << "   Stored total           " << archive.storedBytes() << " bytes\n";
+
+    std::cout << std::fixed << std::setprecision(2)
+              << "   Ratio                  " << archive.ratio() << "\n\n";
+    std::cout.unsetf(std::ios::fixed);
+
+    const bool roundTrips = (huffman::decode(archive) == exported);
+    std::cout << "   Round-trip check       "
+              << (roundTrips ? "exact" : "FAILED") << "\n\n";
+
+    if (archive.ratio() >= 1.0) {
+        std::cout << "   The archive is larger than the export. The frequency\n"
+                  << "   table costs five bytes per distinct symbol, which at\n"
+                  << "   this catalog size outweighs what the coding saves.\n"
+                  << "   The payload alone is " << archive.bytes.size()
+                  << " bytes against " << exported.size() << ".\n";
+    } else {
+        std::cout << "   The table is amortized at this size and the archive\n"
+                  << "   is smaller than the export.\n";
+    }
+    pause();
+}
+
+// Staff view of every title with a waiting list.
 void LibraryUI::holdsReport() {
     header("HOLD LISTS");
 
-    std::vector<std::string> titles = lib.reservations().titlesWithHolds();
+    std::vector<std::string> titles;
+    Status allowed = lib.holdReport(currentUserId, titles);
+    if (allowed != Status::OK) {
+        std::cout << "\n   " << statusMessage(allowed) << "\n";
+        pause();
+        return;
+    }
 
     if (titles.empty()) {
         std::cout << "\n   No titles have anyone waiting.\n";
@@ -345,24 +503,26 @@ void LibraryUI::searchCatalog() {
     header("SEARCH CATALOG");
     std::string query = readLine(" Title or author (blank lists everything): ");
 
-    std::string lowerQuery = query;
-    std::transform(lowerQuery.begin(), lowerQuery.end(), lowerQuery.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-
-    std::vector<std::string> all = lib.isbnsSortedByTitle();
+    // Search goes through the word index rather than scanning the catalog.
+    // A blank query still lists everything, which is a browse rather than a
+    // search and has nothing to look up.
     std::vector<std::string> matches;      // holds the numbered results
 
-    for (const std::string& isbn : all) {
-        Book* b = lib.books().find(isbn);
-        if (b == nullptr) continue;
+    if (query.empty()) {
+        matches = lib.isbnsSortedByTitle();
+    } else {
+        matches = lib.books().search(query);
 
-        std::string haystack = b->title + " " + b->author;
-        std::transform(haystack.begin(), haystack.end(), haystack.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
-
-        if (lowerQuery.empty() || haystack.find(lowerQuery) != std::string::npos) {
-            matches.push_back(isbn);
+        // Results come back in index order, which is bucket order and means
+        // nothing to a reader. Put them in the same title order the rest of
+        // the interface uses.
+        std::vector<std::string> ordered;
+        for (const std::string& isbn : lib.isbnsSortedByTitle()) {
+            if (std::find(matches.begin(), matches.end(), isbn) != matches.end()) {
+                ordered.push_back(isbn);
+            }
         }
+        matches = ordered;
     }
 
     std::cout << "\n";
@@ -480,10 +640,31 @@ void LibraryUI::myAccount() {
     if (u->borrowedIsbns.empty()) {
         std::cout << "   Nothing checked out.\n";
     } else {
-        for (const std::string& isbn : u->borrowedIsbns) {
-            Book* b = lib.books().find(isbn);
-            std::cout << "   " << std::left << std::setw(36)
-                      << (b ? b->title.substr(0, 35) : isbn) << isbn << "\n";
+        // Due dates were in the Module 2 account mock-up and were missing
+        // from the built screen until the Module 9 review. A patron cannot
+        // act on a loan limit without knowing which loan expires first.
+        std::cout << "   " << std::left << std::setw(34) << "Title"
+                  << std::setw(10) << "Due" << "Status\n";
+
+        // One row per loan, not per title. Two copies of one book are two
+        // loans with two deadlines, and showing the earlier date against both
+        // would tell the patron a copy is due sooner than it is.
+        for (const LoanEntry& loan : lib.loansFor(u->userId)) {
+            Book* b = lib.books().find(loan.isbn);
+            std::cout << "   " << std::left << std::setw(34)
+                      << (b ? b->title.substr(0, 33) : loan.isbn)
+                      << std::setw(10)
+                      << ("day " + std::to_string(loan.dueDay));
+
+            const int late = lib.today() - loan.dueDay;
+            if (late > 0) {
+                std::cout << late << " day" << (late == 1 ? "" : "s")
+                          << " OVERDUE";
+            } else {
+                std::cout << "due in " << -late << " day"
+                          << (-late == 1 ? "" : "s");
+            }
+            std::cout << "\n";
         }
     }
     pause();
@@ -514,7 +695,16 @@ void LibraryUI::recommendations() {
 void LibraryUI::overdueReport() {
     header("OVERDUE REPORT");
 
-    std::vector<OverdueNotice> notices = lib.overdueNotices();
+    // The permission check lives in the logic layer. The menu already hides
+    // this option from patrons, but that is convenience, not the rule.
+    std::vector<OverdueNotice> notices;
+    Status allowed = lib.overdueReport(currentUserId, notices);
+    if (allowed != Status::OK) {
+        std::cout << "\n   " << statusMessage(allowed) << "\n";
+        pause();
+        return;
+    }
+
     std::cout << " As of day " << lib.today() << "\n\n";
 
     if (notices.empty()) {
@@ -536,7 +726,14 @@ void LibraryUI::overdueReport() {
 void LibraryUI::inventoryReport() {
     header("INVENTORY REPORT");
 
-    std::vector<std::string> isbns = lib.isbnsSortedByAuthor();
+    std::vector<std::string> isbns;
+    Status allowed = lib.inventoryReport(currentUserId, isbns);
+    if (allowed != Status::OK) {
+        std::cout << "\n   " << statusMessage(allowed) << "\n";
+        pause();
+        return;
+    }
+
     int totalCopies = 0, outCopies = 0;
 
     std::cout << "\n";

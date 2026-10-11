@@ -1,7 +1,5 @@
-// ============================================================================
 // UserAccounts.cpp
-// Smart Library Management System - CPSC 315
-// ============================================================================
+
 #include "UserAccounts.h"
 
 UserAccounts::UserAccounts()

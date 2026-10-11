@@ -9,17 +9,13 @@
 #   ./demo/run_demo.sh           play at a readable pace
 #   ./demo/run_demo.sh --fast    no delay, for a quick verification run
 #
-# Scene list and narration: demo/DEMO_SCRIPT.md
+# The same session, narrated: Final_Project_Presentation_SLMS.mp4 from 1:42.
 
 BIN=./slms_app
 INPUT=demo/demo_input.txt
 
 if [ ! -x "$BIN" ]; then
-    echo "Build first:"
-    echo "  g++ -std=c++17 -Wall -Wextra -o slms_app src/app.cpp src/LibraryUI.cpp \\"
-    echo "      src/BookInventory.cpp src/UserAccounts.cpp src/DueDateHeap.cpp \\"
-    echo "      src/Recommender.cpp src/LibrarySystem.cpp src/DemoFixture.cpp \\"
-    echo "      src/ActivityLog.cpp src/ReservationQueue.cpp"
+    echo "Build first:  make"
     exit 1
 fi
 

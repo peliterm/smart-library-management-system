@@ -1,7 +1,5 @@
-// ============================================================================
 // ActivityLog.cpp
-// Smart Library Management System - CPSC 315
-// ============================================================================
+
 #include "ActivityLog.h"
 
 std::string activityName(ActivityType t) {
@@ -34,10 +32,7 @@ void ActivityLog::clear() {
     total = 0;
 }
 
-// ---------------------------------------------------------------------------
-// push: new node becomes the chain head. The previous head hangs off it, so
-// the chain runs newest to oldest and no traversal is needed to insert.
-// ---------------------------------------------------------------------------
+// New node becomes the head, so the chain runs newest to oldest.
 void ActivityLog::push(int userId, const ActivityEntry& entry) {
     Node* node = new Node(entry);
     auto it = tops.find(userId);
@@ -94,11 +89,7 @@ size_t ActivityLog::depth(int userId) const {
     return (it == depths.end()) ? 0 : it->second;
 }
 
-// ---------------------------------------------------------------------------
-// validate: the recorded depth is derived state, so it can drift from the
-// chain it describes. This walks every chain and checks both the per-account
-// length and the running total against what was recorded.
-// ---------------------------------------------------------------------------
+// Recorded depths are derived state and can drift, so every chain is walked.
 bool ActivityLog::validate() const {
     size_t walked = 0;
 

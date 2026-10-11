@@ -1,8 +1,8 @@
-// ============================================================================
 // BookInventory.cpp
-// Smart Library Management System - CPSC 315
-// ============================================================================
+
 #include "BookInventory.h"
+#include <algorithm>
+#include <cctype>
 
 BookInventory::BookInventory(size_t initialBuckets)
     : buckets(initialBuckets, nullptr), count(0) {}
@@ -40,7 +40,9 @@ bool BookInventory::insert(const Book& book) {
     // Scan the chain for an existing record with this ISBN.
     for (Node* cur = buckets[idx]; cur != nullptr; cur = cur->next) {
         if (cur->book.isbn == book.isbn) {
-            cur->book = book;   // update in place
+            deindexRecord(cur->book);   // drop the old title's words first
+            cur->book = book;           // update in place
+            indexRecord(cur->book);
             return false;
         }
     }
@@ -50,6 +52,7 @@ bool BookInventory::insert(const Book& book) {
     node->next = buckets[idx];
     buckets[idx] = node;
     ++count;
+    indexRecord(book);
 
     // Grow before chains get long enough to hurt lookup time.
     if (loadFactor() > MAX_LOAD) {
@@ -75,6 +78,7 @@ bool BookInventory::remove(const std::string& isbn) {
 
     while (cur != nullptr) {
         if (cur->book.isbn == isbn) {
+            deindexRecord(cur->book);       // keep the word index in step
             if (prev == nullptr) {
                 buckets[idx] = cur->next;   // removing the chain head
             } else {
@@ -140,4 +144,103 @@ void BookInventory::clear() {
         }
     }
     count = 0;
+    wordIndex.clear();   // the secondary index describes records now gone
+}
+
+
+// ---------------------------------------------------------------------------
+// Secondary word index.
+//
+// tokenize lowercases and splits on anything that is not a letter or digit,
+// so "O'Brien" yields "o" and "brien" and "C++" yields "c". Punctuation in a
+// title should never decide whether a search finds it.
+// ---------------------------------------------------------------------------
+std::vector<std::string> BookInventory::tokenize(const std::string& text) {
+    std::vector<std::string> words;
+    std::string current;
+    for (unsigned char c : text) {
+        if (std::isalnum(c)) {
+            current += static_cast<char>(std::tolower(c));
+        } else if (!current.empty()) {
+            words.push_back(current);
+            current.clear();
+        }
+    }
+    if (!current.empty()) words.push_back(current);
+    return words;
+}
+
+void BookInventory::indexRecord(const Book& book) {
+    for (const std::string& word : tokenize(book.title + " " + book.author)) {
+        std::vector<std::string>& isbns = wordIndex[word];
+        // A word repeated in one title must not list the ISBN twice, or a
+        // search would report the same book more than once.
+        if (std::find(isbns.begin(), isbns.end(), book.isbn) == isbns.end()) {
+            isbns.push_back(book.isbn);
+        }
+    }
+}
+
+void BookInventory::deindexRecord(const Book& book) {
+    for (const std::string& word : tokenize(book.title + " " + book.author)) {
+        auto it = wordIndex.find(word);
+        if (it == wordIndex.end()) continue;
+
+        std::vector<std::string>& isbns = it->second;
+        isbns.erase(std::remove(isbns.begin(), isbns.end(), book.isbn),
+                    isbns.end());
+        if (isbns.empty()) wordIndex.erase(it);   // no empty buckets left behind
+    }
+}
+
+std::vector<std::string> BookInventory::findByWord(const std::string& word) const {
+    std::vector<std::string> lowered = tokenize(word);
+    if (lowered.empty()) return std::vector<std::string>();
+
+    auto it = wordIndex.find(lowered.front());
+    return (it == wordIndex.end()) ? std::vector<std::string>() : it->second;
+}
+
+std::vector<std::string> BookInventory::searchSubstring(
+        const std::string& text) const {
+    std::string needle;
+    for (unsigned char c : text) needle += static_cast<char>(std::tolower(c));
+
+    std::vector<std::string> out;
+    for (const Book& b : getAll()) {
+        std::string haystack;
+        for (unsigned char c : b.title + " " + b.author) {
+            haystack += static_cast<char>(std::tolower(c));
+        }
+        if (haystack.find(needle) != std::string::npos) out.push_back(b.isbn);
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// search: indexed first, scan only as a fallback.
+//
+// A multi-word query intersects the posting lists of each word, which is the
+// O(m + n) merge described in the Module 2 post. A query that matches no
+// whole word falls through to the substring scan, so partial words still
+// work even though the index cannot answer them.
+// ---------------------------------------------------------------------------
+std::vector<std::string> BookInventory::search(const std::string& query) const {
+    std::vector<std::string> words = tokenize(query);
+    if (words.empty()) return std::vector<std::string>();
+
+    std::vector<std::string> result = findByWord(words.front());
+    for (size_t i = 1; i < words.size() && !result.empty(); ++i) {
+        std::vector<std::string> next = findByWord(words[i]);
+        std::vector<std::string> both;
+        for (const std::string& isbn : result) {
+            if (std::find(next.begin(), next.end(), isbn) != next.end()) {
+                both.push_back(isbn);
+            }
+        }
+        result = both;
+    }
+
+    if (result.empty()) return searchSubstring(query);
+    return result;
 }

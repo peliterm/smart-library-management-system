@@ -1,0 +1,469 @@
+================================================================================
+ VERIFICATION RECORD
+ Smart Library Management System - CPSC 315 - Michael Pelitera
+================================================================================
+
+A reviewer without a C++ compiler cannot re-run the suite. This file is the
+captured output plus the arithmetic needed to check the headline number by
+reading the source alone.
+
+--------------------------------------------------------------------------------
+ HOW TO CHECK "304 CHECKS" WITHOUT COMPILING
+--------------------------------------------------------------------------------
+
+  grep -c "check(" src/main.cpp          ->  298
+
+  298 raw matches
+   -1 the definition of the helper itself, "static void check(...)"
+  ----
+  297 call sites inside the twenty-one test sections
+   +7 section 11 loops one call site over the eight screens enumerated in
+      the Screen enum in src/DemoFixture.h, so one site runs eight times
+  ----
+  304 checks executed
+
+Every other section's call-site count equals its executed count exactly. The
+per-section table below gives both numbers so the arithmetic can be checked
+section by section rather than taken as a whole.
+
+--------------------------------------------------------------------------------
+ STATIC CALL SITES AGAINST EXECUTED CHECKS, BY SECTION
+--------------------------------------------------------------------------------
+
+  sec  static  run   section
+    1       4    4   Book inventory: insert and lookup
+    2       3    3   Hash distribution under shared ISBN prefixes
+    3       8    8   User accounts: sorted list and index
+    4      12   12   Integration: checkout and return
+    5      14   14   Due-date heap: deadlines and early returns
+    6       6    6   Heap stress: 2,000 loans in random due-date or
+    7       9    9   Recommender: co-borrowing graph and score BST
+    8       2    2   Recommender: neighbor cap bounds the graph
+    9       3    3   Sorted views
+   10      12   12   Regression: bugs found during Module 6 testing
+   11      12   19   Interface-state coverage of the demo fixture   <- loop over the 8 Screen values
+   12      15   15   Activity log: the per-account stack
+   13      26   26   Reservation queue: FIFO hold lines per title
+   14      31   31   Integration: reservations, fulfilment, and und
+   15      32   32   Regression: defects found in the Module 9 revi
+   16      35   35   Cryptographic primitives and password hashing
+   17      17   17   Huffman coding over a catalog export
+   18       5    5   Sorting by publication date
+   19      16   16   Secondary word index on titles and authors
+   20      24   24   Staff management of the catalog and accounts
+   21      11   11   Regression: second review round
+          297  304   TOTAL
+
+--------------------------------------------------------------------------------
+ ENVIRONMENT
+--------------------------------------------------------------------------------
+  compiler   g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  flags      -std=c++17 -O2 -Wall -Wextra -Wpedantic  (no warnings emitted)
+  platform   Linux 6.18.44-fc-v80
+  captured   2026-10-09 16:34 UTC
+
+  Reproduce with:  make verify
+  That target fails with a non-zero exit status if any test fails, if either
+  sanitizer reports anything, or if the demo output drifts from the recorded
+  fallback. It was confirmed to fail by deliberately breaking a test and by
+  corrupting demo/recorded_run.txt.
+
+--------------------------------------------------------------------------------
+ FULL TEST OUTPUT
+--------------------------------------------------------------------------------
+
+
+1. Book inventory: insert and lookup
+------------------------------------
+  [PASS] four records stored
+  [PASS] lookup by ISBN finds the right title
+  [PASS] lookup of an unknown ISBN returns nullptr
+  [PASS] re-insert updates instead of duplicating
+
+2. Hash distribution under shared ISBN prefixes
+-----------------------------------------------
+  records: 5000, buckets: 8192, load factor: 0.61, longest chain: 5
+  [PASS] table resized to hold the load
+  [PASS] no chain grew beyond 6 nodes
+  [PASS] all records retrievable after resizing
+
+3. User accounts: sorted list and index
+---------------------------------------
+  [PASS] four accounts stored
+  [PASS] duplicate ID rejected
+  [PASS] list is in ascending ID order after interior insert
+  [PASS] index and list agree
+  [PASS] lookup by ID returns the right account
+  [PASS] removal drops the account
+  [PASS] removed ID no longer found
+  [PASS] index and list still agree after removal
+
+4. Integration: checkout and return
+-----------------------------------
+  [PASS] valid checkout succeeds
+  [PASS] available count decremented
+  [PASS] loan recorded on the account
+  [PASS] checkout with unknown user rejected
+  [PASS] checkout with unknown ISBN rejected
+  [PASS] checkout with no copies left rejected
+  [PASS] user is at the five-loan limit
+  [PASS] sixth checkout rejected at the limit
+  [PASS] return succeeds
+  [PASS] available count restored
+  [PASS] returning a book not on the account rejected
+  [PASS] all module invariants hold after the checkout sequence
+
+5. Due-date heap: deadlines and early returns
+---------------------------------------------
+  [PASS] three loans tracked in the heap
+  [PASS] heap invariant and index map hold
+  [PASS] earliest due date surfaces first
+  [PASS] early return succeeds
+  [PASS] heap shrank by one
+  [PASS] heap still valid after arbitrary removal
+  [PASS] removed loan no longer findable
+  [PASS] earliest due date unchanged by the removal
+  [PASS] staff may run the overdue report
+  [PASS] one loan reported overdue
+  [PASS] overdue notice names the right account and title
+  [PASS] days late computed correctly
+  [PASS] generating a report does not drain the heap
+  [PASS] both loans overdue, earliest first
+
+6. Heap stress: 2,000 loans in random due-date order
+----------------------------------------------------
+  [PASS] all loans pushed
+  [PASS] heap valid after 2,000 inserts
+  [PASS] arbitrary removals succeeded
+  [PASS] heap valid after scattered removals
+  [PASS] draining yields ascending due dates
+  [PASS] heap empty after drain
+
+7. Recommender: co-borrowing graph and score BST
+------------------------------------------------
+  [PASS] graph has vertices for the borrowed titles
+  [PASS] score BST is a valid BST
+  [PASS] user with one book gets recommendations
+  [PASS] highest-scoring recommendation comes first
+  [PASS] top recommendation is the strongest co-borrow
+  [PASS] books already borrowed are excluded
+  [PASS] limit is respected
+  [PASS] recommender tree valid after traversal
+  [PASS] all module invariants hold after recommendation run
+
+8. Recommender: neighbor cap bounds the graph
+---------------------------------------------
+  [PASS] neighbor list capped at 50
+  [PASS] tree still valid
+
+9. Sorted views
+---------------
+  By title:
+    Design Patterns                 Gamma
+    Digital Apollo                  Mindell
+    Effective Modern C++            Meyers
+    Filler A                        Author
+    Filler B                        Author
+    Filler C                        Author
+    The Apollo Guidance Computer    O'Brien
+  [PASS] title view is ordered
+  [PASS] author view is ordered
+  [PASS] titles stay ordered within an author group (stability)
+
+10. Regression: bugs found during Module 6 testing
+--------------------------------------------------
+  [PASS] two copies of one title produce distinct loans
+  [PASS] both loans tracked in the heap
+  [PASS] first return clears exactly one heap entry
+  [PASS] second return empties the heap
+  [PASS] no phantom overdue notice after both returns
+  [PASS] copy count fully restored
+  [PASS] invariants hold after duplicate-title cycle
+  [PASS] hub capped at 50 neighbors
+  [PASS] trimmed neighbors dropped their return edges
+  [PASS] tree valid after trimming
+  [PASS] wrong account cannot return the book
+  [PASS] failed return does not inflate the copy count
+
+11. Interface-state coverage of the demo fixture
+------------------------------------------------
+  [PASS] fixture leaves the system consistent
+  [PASS] coverage check inspects every declared screen
+  [PASS] populated under demo fixture: search results
+  [PASS] populated under demo fixture: unavailable title (refusal path)
+  [PASS] populated under demo fixture: recommendations
+  [PASS] populated under demo fixture: account loans
+  [PASS] populated under demo fixture: overdue report
+  [PASS] populated under demo fixture: inventory totals
+  [PASS] populated under demo fixture: recent activity (stack)
+  [PASS] populated under demo fixture: hold lists (queue)
+  [PASS] recommendations are non-empty and bounded by the limit
+  [PASS] overdue report shows the two loans the script names
+  [PASS] no-history fixture is consistent
+  [PASS] no-history fixture: search still finds the catalog
+  [PASS] no-history fixture: recommendations render empty
+  [PASS] no-history fixture: overdue report renders empty
+  [PASS] no-history fixture: inventory totals still populate
+  [PASS] empty fixture is consistent
+  [PASS] empty fixture leaves every screen empty without faulting
+
+12. Activity log: the per-account stack
+---------------------------------------
+  [PASS] empty log reports nothing
+  [PASS] empty log has zero depth
+  [PASS] empty log validates
+  [PASS] depth tracks pushes
+  [PASS] peek returns the newest entry
+  [PASS] recent returns newest first
+  [PASS] reading the stack does not consume it
+  [PASS] pop returns the newest
+  [PASS] pop reduces depth
+  [PASS] accounts keep separate stacks
+  [PASS] total counts every account
+  [PASS] log validates after mixed operations
+  [PASS] drained account reports empty
+  [PASS] drained account has no peek
+  [PASS] log validates after draining
+
+13. Reservation queue: FIFO hold lines per title
+------------------------------------------------
+  [PASS] empty queue validates
+  [PASS] empty line has no front
+  [PASS] first patron joins
+  [PASS] second patron joins
+  [PASS] third patron joins
+  [PASS] line length tracked
+  [PASS] front is the first to ask
+  [PASS] line is in arrival order
+  [PASS] a patron cannot take two places
+  [PASS] refused duplicate left the line unchanged
+  [PASS] middle patron cancels
+  [PASS] line shortens
+  [PASS] order survives a middle removal
+  [PASS] tail patron cancels
+  [PASS] enqueue after tail removal works
+  [PASS] new patron lands at the back
+  [PASS] queue validates after tail churn
+  [PASS] dequeue serves the front
+  [PASS] dequeue serves in order
+  [PASS] drained line is gone
+  [PASS] dequeue on an empty line fails
+  [PASS] queue validates after draining
+  [PASS] one patron may wait on two titles
+  [PASS] total counts across titles
+  [PASS] cancelling one title leaves the other
+  [PASS] queue validates across titles
+
+14. Integration: reservations, fulfilment, and undo
+---------------------------------------------------
+  [PASS] cannot reserve an available title
+  [PASS] now the title is reservable
+  [PASS] reserving twice is refused
+  [PASS] second patron joins behind the first
+  [PASS] hold line is two deep
+  [PASS] return succeeds
+  [PASS] returned copy went to the front of the line
+  [PASS] fulfilled patron now holds it
+  [PASS] fulfilled patron left the line
+  [PASS] the next patron moved up
+  [PASS] no copy sitting on the shelf after fulfilment
+  [PASS] invariants hold after fulfilment
+  [PASS] borrowing another title does not forfeit a hold
+  [PASS] title with no copies can be reserved
+  [PASS] fulfilment cleared the hold
+  [PASS] fulfilled patron holds the copy
+  [PASS] invariants hold after fulfilment by return
+  [PASS] nothing to undo on a fresh account
+  [PASS] checkout recorded on the stack
+  [PASS] undo reverses the checkout
+  [PASS] undo reported the right action
+  [PASS] copy went back on the shelf
+  [PASS] loan cleared from the account
+  [PASS] heap entry cleared
+  [PASS] undo did not record itself
+  [PASS] stack is empty, so nothing is left to undo
+  [PASS] invariants hold after undo
+  [PASS] the only copy is now held by someone else
+  [PASS] undoing the return fails, the copy is gone
+  [PASS] failed undo put the entry back
+  [PASS] invariants hold after a failed undo
+
+15. Regression: defects found in the Module 9 review
+----------------------------------------------------
+  [PASS] loan starts due on day 21
+  [PASS] undo of the return succeeds
+  [PASS] restored loan keeps its original due day
+  [PASS] restored loan keeps its original loan ID
+  [PASS] invariants hold after restoring a loan
+  [PASS] two distinct loans on one title
+  [PASS] undo of the second checkout succeeds
+  [PASS] exactly one loan remains
+  [PASS] the loan that remains is the FIRST one
+  [PASS] the remaining loan kept its own due day
+  [PASS] invariants hold after undoing a duplicate-title checkout
+  [PASS] second patron is at the loan limit
+  [PASS] two patrons waiting
+  [PASS] the copy went to the next patron who could take it
+  [PASS] that patron now holds it
+  [PASS] the blocked patron kept their place in line
+  [PASS] the blocked patron is now at the front
+  [PASS] no copy left sitting on the shelf
+  [PASS] invariants hold after a partial fulfilment
+  [PASS] role test recognises a librarian
+  [PASS] role test recognises an administrator
+  [PASS] role test rejects a student
+  [PASS] role test rejects an unknown account
+  [PASS] a student is refused the overdue report
+  [PASS] a refused report returns no data
+  [PASS] a student is refused the inventory report
+  [PASS] a refused inventory report returns no data
+  [PASS] a student is refused the hold report
+  [PASS] a librarian is allowed the overdue report
+  [PASS] an administrator is allowed the inventory report
+  [PASS] the allowed report actually returns the catalog
+  [PASS] an unknown account is refused before the role check
+
+16. Cryptographic primitives and password hashing
+-------------------------------------------------
+  [PASS] SHA-256 of the empty string matches the published digest
+  [PASS] SHA-256 of "abc" matches the published digest
+  [PASS] SHA-256 of the 56-character example matches
+  [PASS] SHA-256 spans multiple blocks correctly
+  [PASS] HMAC-SHA256 matches RFC 4231 case 1
+  [PASS] HMAC-SHA256 hashes an over-long key first (RFC 4231 case 6)
+  [PASS] PBKDF2-HMAC-SHA256 matches RFC 7914 (c=1)
+  [PASS] PBKDF2-HMAC-SHA256 matches RFC 7914 (c=80000)
+  [PASS] hex encoding round-trips
+  [PASS] the record names its algorithm and factor
+  [PASS] the plaintext is nowhere in the record
+  [PASS] the same password hashes differently each time (salt works)
+  [PASS] the correct password verifies against both records
+  [PASS] a one-character difference is rejected
+  [PASS] case matters
+  [PASS] an empty password is rejected against a real record
+  [PASS] an empty password can itself be hashed and verified
+  [PASS] a non-record fails closed rather than matching
+  [PASS] the old FNV record format is no longer accepted
+  [PASS] a truncated record fails closed
+  [PASS] a tampered digest fails
+  [PASS] an absurd iteration count is refused rather than computed
+  [PASS] the stored iteration count is used, not the constant
+  [PASS] a different salt gives a different digest
+  [PASS] a record at the default factor records 600000 iterations
+  [PASS] a record at the default factor verifies
+  [PASS] and rejects a wrong password at that factor
+  [PASS] an account with no password cannot be signed into
+  [PASS] setting a password succeeds
+  [PASS] the right password authenticates
+  [PASS] the wrong password does not
+  [PASS] an unknown account never authenticates
+  [PASS] the account stores a hash, not the password
+  [PASS] identical passwords store differently across accounts
+  [PASS] but both still verify
+
+17. Huffman coding over a catalog export
+----------------------------------------
+  [PASS] the catalog export is non-empty
+  [PASS] the export has one line per title
+  [PASS] encoding produced bits
+  [PASS] the export round-trips exactly
+  [PASS] compressed payload is smaller than the original
+         demo export 355 bytes -> 231 payload + 255 header = 486, ratio 1.37
+  [PASS] the header outweighs the payload at demo scale
+  [PASS] the large export round-trips exactly
+  [PASS] at catalog scale the archive is smaller than the original
+         5,000-title export 397624 bytes -> 241415 bytes stored, ratio 0.61
+  [PASS] the commonest symbol has a code no longer than the rarest
+  [PASS] no code is empty
+  [PASS] the code set is prefix-free
+  [PASS] empty input round-trips to empty
+  [PASS] a single character round-trips
+  [PASS] a run of one repeated symbol round-trips
+  [PASS] one repeated symbol compresses heavily
+  [PASS] text with every byte value round-trips
+  [PASS] encoding is deterministic across runs
+
+18. Sorting by publication date
+-------------------------------
+  [PASS] every title appears in the year view
+  [PASS] dated titles run newest first
+  [PASS] the newest title leads
+  [PASS] the oldest dated title trails
+  [PASS] an undated title sorts to the end
+
+19. Secondary word index on titles and authors
+----------------------------------------------
+  [PASS] the index holds words
+  [PASS] a word query finds both Apollo titles
+  [PASS] the word query is case-insensitive
+  [PASS] a word absent from the catalog finds nothing
+  [PASS] an author surname is indexed
+  [PASS] a name with an apostrophe is tokenized
+  [PASS] two words intersect to the title holding both
+  [PASS] two words with no title in common find nothing by index, and the substring fallback also finds nothing
+  [PASS] a partial word misses the index but the fallback finds it
+  [PASS] a new record is indexed immediately
+  [PASS] a removed record leaves no index entry
+  [PASS] the first title is indexed
+  [PASS] the replaced title's words are gone
+  [PASS] the replacement title's words are present
+  [PASS] a word shared by every title returns every title
+  [PASS] a single rare title is found without scanning the catalog
+
+20. Staff management of the catalog and accounts
+------------------------------------------------
+  [PASS] a student cannot add a book
+  [PASS] the refused add changed nothing
+  [PASS] a librarian can add a book
+  [PASS] the added book is in the catalog
+  [PASS] the added book is searchable immediately
+  [PASS] adding the same ISBN twice is refused
+  [PASS] a student cannot remove a book
+  [PASS] removing an unknown ISBN says so
+  [PASS] a librarian can remove an unused book
+  [PASS] a book with copies out cannot be removed
+  [PASS] the refused removal left the record in place
+  [PASS] the hold was filled by the return
+  [PASS] still unremovable while that copy is out
+  [PASS] removable once every copy is back
+  [PASS] a student cannot create an account
+  [PASS] a librarian can create an account
+  [PASS] the new account can sign in with its password
+  [PASS] the new account did not store its password in the clear
+  [PASS] a duplicate account ID is refused
+  [PASS] an account holding a loan cannot be removed
+  [PASS] the account can be removed once it holds nothing
+  [PASS] the removed account is gone
+  [PASS] the removed account can no longer authenticate
+  [PASS] invariants hold after management operations
+
+21. Regression: second review round
+-----------------------------------
+  [PASS] two copies produce exactly two loan entries
+  [PASS] the two entries have distinct loan IDs
+  [PASS] each loan carries its own due date
+  [PASS] undo of the second checkout succeeds
+  [PASS] one loan remains after the undo
+  [PASS] the remaining loan is the first, still due on day 21
+  [PASS] invariants hold
+  [PASS] three copies produce three loan entries
+  [PASS] staff get the overdue list
+  [PASS] a student is refused
+  [PASS] the refusal cleared the caller's buffer
+
+========================================
+  304 of 304 checks passed
+========================================
+
+--------------------------------------------------------------------------------
+ SANITIZERS
+--------------------------------------------------------------------------------
+
+  g++ -std=c++17 -O1 -Wall -Wextra -Wpedantic \
+      -fsanitize=address,undefined -fno-sanitize-recover=all -g
+  ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1
+
+========================================
+  304 of 304 checks passed
+========================================
+  No AddressSanitizer or UndefinedBehaviorSanitizer diagnostics were emitted.

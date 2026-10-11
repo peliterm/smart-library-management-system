@@ -1,33 +1,14 @@
-// ============================================================================
-// ReservationQueue.h
-// Smart Library Management System - CPSC 315
+// ReservationQueue.h - one FIFO hold queue per title.
 //
-// One FIFO queue of waiting patrons per title, which is the structure the
-// project specification calls for to process book reservations.
+// A queue makes first-asked-first-served a property of the structure rather
+// than something the surrounding code must maintain. Linked nodes with a tail
+// pointer, so joining and being served are both O(1); cancelling leaves from
+// the middle and is O(k).
 //
-// Why a queue. The rule a hold list has to enforce is that the person who
-// asked first is served first. That is the definition of a queue, and using
-// one makes the ordering a property of the structure rather than something
-// the surrounding code has to remember to maintain.
-//
-// Hand-written over linked nodes with a tail pointer, so enqueue and dequeue
-// are both O(1). A vector would make dequeue O(n) because every remaining
-// element shifts forward, and the front of the line is the end that moves
-// most often.
-//
-// Cancellation is the one operation that is not FIFO: a patron can leave the
-// line from the middle. That is a linear walk, which is acceptable because
-// cancelling is rare compared to joining and being served, and because hold
-// lines are short.
-//
-// Note on the Module 2 design. That document specified an activeHolds counter
-// stored on the Book record so the "is anyone waiting" check would be O(1).
-// This implementation keeps the count inside the queue instead. The counter
-// on Book would have been a second copy of a number this structure already
-// knows, and the two most serious defects found in Module 6 were both cases
-// of duplicated state disagreeing with itself. lengthOf() is already O(1),
-// so the counter bought nothing and risked the same class of bug.
-// ============================================================================
+// The Module 2 design put an activeHolds counter on Book. It is not here: the
+// queue already knows its length in O(1), and the two worst defects found in
+// Module 6 were both duplicated state disagreeing with itself.
+
 #ifndef RESERVATION_QUEUE_H
 #define RESERVATION_QUEUE_H
 

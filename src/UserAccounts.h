@@ -1,26 +1,11 @@
-// ============================================================================
-// UserAccounts.h
-// Smart Library Management System - CPSC 315
+// UserAccounts.h - sorted doubly linked list of accounts plus a hash index
+// from user ID to node.
 //
-// Sorted doubly linked list of user accounts, ordered by user ID, paired with
-// a hash index that maps user ID to the node holding that account.
-//
-// Why both structures:
-//   - The linked list keeps accounts in sorted order for sequential display
-//     and allows insertion and removal without shifting other records.
-//   - A list alone requires O(n) traversal to locate an account. The hash
-//     index removes that cost, giving O(1) average lookup while the list
-//     keeps its ordering and its cheap structural edits.
-//   - Because the index stores a node pointer, deletion is O(1): look up the
-//     node, relink its two neighbors, free it. No traversal is needed.
-//
-// Insertion cost:
-//   User IDs are assigned in increasing order, so a new account almost always
-//   belongs at the tail. The tail pointer makes that case O(1). The general
-//   insert path still walks backward from the tail to place an out-of-order
-//   ID (for example, restoring a previously deleted account), which is O(n)
-//   in the worst case but rare in practice.
-// ============================================================================
+// The list is a project requirement; alone it makes lookup O(n). The index
+// gives O(1) average lookup and O(1) deletion, since the node is handed over
+// directly and only its two neighbours need relinking. The cost is two
+// structures that can disagree, which validate() checks.
+
 #ifndef USER_ACCOUNTS_H
 #define USER_ACCOUNTS_H
 

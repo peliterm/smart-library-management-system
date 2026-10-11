@@ -12,9 +12,11 @@
    2001  A. Rivera  (Librarian)
    3001  Admin      (Administrator)
 
+ Password for every demo account: library
+
  Enter 0 to exit.
 
-Account ID: 
+Account ID: Password:   
 --------------------------------------------------------
  MAIN MENU                               Mike / Student
 --------------------------------------------------------
@@ -141,7 +143,8 @@ Select [1-8]:
  Account 1001  Mike  (Student)
  Active loans: 1 of 5
 
-   Digital Apollo                      9780262134729
+   Title                             Due       Status
+   Digital Apollo                    day 121   due in 21 days
 
 Press Enter to continue.
 --------------------------------------------------------
@@ -194,9 +197,11 @@ Select [1-8]:
    2001  A. Rivera  (Librarian)
    3001  Admin      (Administrator)
 
+ Password for every demo account: library
+
  Enter 0 to exit.
 
-Account ID: 
+Account ID: Password:   
 --------------------------------------------------------
  MAIN MENU                           A. Rivera / Librarian
 --------------------------------------------------------
@@ -212,10 +217,12 @@ Account ID:
     8. Overdue report
     9. Inventory report
    10. Hold lists
+   11. Storage report
+   12. Manage catalog and accounts
 
-   11. Sign out
+   13. Sign out
 
-Select [1-11]: 
+Select [1-13]: 
 --------------------------------------------------------
  OVERDUE REPORT                      A. Rivera / Librarian
 --------------------------------------------------------
@@ -242,10 +249,12 @@ Press Enter to continue.
     8. Overdue report
     9. Inventory report
    10. Hold lists
+   11. Storage report
+   12. Manage catalog and accounts
 
-   11. Sign out
+   13. Sign out
 
-Select [1-11]: 
+Select [1-13]: 
 --------------------------------------------------------
  INVENTORY REPORT                    A. Rivera / Librarian
 --------------------------------------------------------
@@ -276,10 +285,12 @@ Press Enter to continue.
     8. Overdue report
     9. Inventory report
    10. Hold lists
+   11. Storage report
+   12. Manage catalog and accounts
 
-   11. Sign out
+   13. Sign out
 
-Select [1-11]: 
+Select [1-13]: 
 --------------------------------------------------------
  HOLD LISTS                          A. Rivera / Librarian
 --------------------------------------------------------
@@ -306,10 +317,99 @@ Press Enter to continue.
     8. Overdue report
     9. Inventory report
    10. Hold lists
+   11. Storage report
+   12. Manage catalog and accounts
 
-   11. Sign out
+   13. Sign out
 
-Select [1-11]: 
+Select [1-13]: 
+--------------------------------------------------------
+ STORAGE REPORT                      A. Rivera / Librarian
+--------------------------------------------------------
+ Catalog export, Huffman coded.
+
+   Records                6
+   Export size            355 bytes
+   Distinct symbols       51
+   Coded payload          231 bytes
+   Frequency table        255 bytes
+   Stored total           486 bytes
+   Ratio                  1.37
+
+   Round-trip check       exact
+
+   The archive is larger than the export. The frequency
+   table costs five bytes per distinct symbol, which at
+   this catalog size outweighs what the coding saves.
+   The payload alone is 231 bytes against 355.
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                           A. Rivera / Librarian
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
+
+   Staff functions
+    8. Overdue report
+    9. Inventory report
+   10. Hold lists
+   11. Storage report
+   12. Manage catalog and accounts
+
+   13. Sign out
+
+Select [1-13]: 
+--------------------------------------------------------
+ MANAGE CATALOG AND ACCOUNTS         A. Rivera / Librarian
+--------------------------------------------------------
+   1. Add a book
+   2. Remove a book
+   3. Add an account
+   4. Remove an account
+   5. Back
+
+Select [1-5]: 
+ ISBN:             Title:            Author:           Genre:            Copies:           Year (0 if n/a): 
+   Added.
+
+Press Enter to continue.
+--------------------------------------------------------
+ MANAGE CATALOG AND ACCOUNTS         A. Rivera / Librarian
+--------------------------------------------------------
+   1. Add a book
+   2. Remove a book
+   3. Add an account
+   4. Remove an account
+   5. Back
+
+Select [1-5]: 
+--------------------------------------------------------
+ MAIN MENU                           A. Rivera / Librarian
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
+
+   Staff functions
+    8. Overdue report
+    9. Inventory report
+   10. Hold lists
+   11. Storage report
+   12. Manage catalog and accounts
+
+   13. Sign out
+
+Select [1-13]: 
 --------------------------------------------------------
  SIGN IN                             
 --------------------------------------------------------
@@ -318,6 +418,8 @@ Select [1-11]:
    1002  Priya      (Student)
    2001  A. Rivera  (Librarian)
    3001  Admin      (Administrator)
+
+ Password for every demo account: library
 
  Enter 0 to exit.
 

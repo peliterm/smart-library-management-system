@@ -1,10 +1,6 @@
-// ============================================================================
-// Book.h
-// Smart Library Management System - CPSC 315
-//
-// Record type for a single catalog title. One Book represents one ISBN, not
-// one physical copy, so copy counts are stored as integers on the record.
-// ============================================================================
+// Book.h - one catalog title. Copy counts are integers on the record, so a
+// Book represents an ISBN rather than a physical copy.
+
 #ifndef BOOK_H
 #define BOOK_H
 
@@ -15,17 +11,21 @@ struct Book {
     std::string title;
     std::string author;
     std::string genre;
+    int year;                // publication year; 0 when unknown
     int copiesTotal;         // how many copies the library owns
     int copiesAvailable;     // how many are currently on the shelf
 
     Book()
-        : copiesTotal(0), copiesAvailable(0) {}
+        : year(0), copiesTotal(0), copiesAvailable(0) {}
 
+    // year is last and defaults to 0 so records created before publication
+    // dates existed still compile. A record with year 0 sorts after every
+    // dated record rather than pretending to be from antiquity.
     Book(const std::string& isbn_, const std::string& title_,
          const std::string& author_, const std::string& genre_,
-         int copies)
+         int copies, int year_ = 0)
         : isbn(isbn_), title(title_), author(author_), genre(genre_),
-          copiesTotal(copies), copiesAvailable(copies) {}
+          year(year_), copiesTotal(copies), copiesAvailable(copies) {}
 
     bool isAvailable() const { return copiesAvailable > 0; }
 };

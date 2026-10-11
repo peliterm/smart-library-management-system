@@ -1,22 +1,9 @@
-// ============================================================================
-// ActivityLog.h
-// Smart Library Management System - CPSC 315
+// ActivityLog.h - a stack of actions per account, for display and undo.
 //
-// A stack of activity entries per account, which is the structure the project
-// specification calls for to track user activity.
-//
-// Why a stack rather than a list. The only question this structure has to
-// answer quickly is "what did this patron just do," and the only write it has
-// to support is "undo that." Both of those are last-in-first-out, so the
-// restriction a stack imposes is not a cost here. It is the point: a stack
-// cannot be asked to remove an entry from the middle, which means an undo
-// cannot silently skip over an action and reverse an older one instead.
-//
-// The stack is hand-written over linked nodes rather than wrapping
-// std::stack, for the same reason the inventory, account list, heap, and
-// recommendation tree are hand-written. Each account owns one chain; the
-// chain head is the most recent action.
-// ============================================================================
+// A stack rather than a list because both operations are last-in-first-out,
+// and the restriction is the point: an undo cannot skip over an action to
+// reverse an older one.
+
 #ifndef ACTIVITY_LOG_H
 #define ACTIVITY_LOG_H
 
@@ -34,14 +21,22 @@ enum class ActivityType {
 
 std::string activityName(ActivityType t);
 
+// Stores actions for undo. Loan IDs distinguish duplicate copies of one
+// title; original due dates stop an undo from extending a loan. Both are 0
+// for actions with no loan, such as reservations.
 struct ActivityEntry {
     ActivityType type;
     std::string  isbn;
     int          day;        // system day number the action happened on
+    int          loanId;     // the specific loan this action affected, or 0
+    int          dueDay;     // that loan's due date, so undo can restore it
 
-    ActivityEntry() : type(ActivityType::CHECKOUT), day(0) {}
-    ActivityEntry(ActivityType t, const std::string& isbn_, int day_)
-        : type(t), isbn(isbn_), day(day_) {}
+    ActivityEntry()
+        : type(ActivityType::CHECKOUT), day(0), loanId(0), dueDay(0) {}
+
+    ActivityEntry(ActivityType t, const std::string& isbn_, int day_,
+                  int loanId_ = 0, int dueDay_ = 0)
+        : type(t), isbn(isbn_), day(day_), loanId(loanId_), dueDay(dueDay_) {}
 };
 
 class ActivityLog {

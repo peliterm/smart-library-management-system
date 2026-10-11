@@ -1,7 +1,5 @@
-// ============================================================================
 // DemoFixture.cpp
-// Smart Library Management System - CPSC 315
-// ============================================================================
+
 #include "DemoFixture.h"
 #include <algorithm>
 #include <cctype>
@@ -10,6 +8,7 @@ namespace demo {
     const std::string SEARCH_TERM      = "apollo";
     const std::string BORROWED_ISBN    = "9780262134729";  // Digital Apollo
     const std::string UNAVAILABLE_ISBN = "9780262529662";  // Apollo Guidance Computer
+    const std::string PASSWORD         = "library";
 }
 
 const char* screenName(Screen s) {
@@ -44,23 +43,34 @@ std::vector<Screen> allScreens() {
 // ---------------------------------------------------------------------------
 static void seedCatalogAndAccounts(LibrarySystem& lib) {
     lib.books().insert(Book("9780262134729", "Digital Apollo",
-                            "Mindell",  "History",   3));
+                            "Mindell",  "History",   3, 2008));
     lib.books().insert(Book("9780262529662", "The Apollo Guidance Computer",
-                            "O'Brien",  "History",   1));
+                            "O'Brien",  "History",   1, 2010));
     lib.books().insert(Book("9780134685991", "Effective Modern C++",
-                            "Meyers",   "Computing", 2));
+                            "Meyers",   "Computing", 2, 2014));
     lib.books().insert(Book("9780201633610", "Design Patterns",
-                            "Gamma",    "Computing", 4));
+                            "Gamma",    "Computing", 4, 1994));
     lib.books().insert(Book("9780553380163", "A Brief History of Time",
-                            "Hawking",  "Science",   2));
+                            "Hawking",  "Science",   2, 1988));
     lib.books().insert(Book("9780307887894", "The Lean Startup",
-                            "Ries",     "Business",  2));
+                            "Ries",     "Business",  2, 2011));
 
-    lib.accounts().addUser(User(1001, "Mike",      "mike@example.edu",   "hash", Role::STUDENT));
-    lib.accounts().addUser(User(1002, "Priya",     "priya@example.edu",  "hash", Role::STUDENT));
-    lib.accounts().addUser(User(1003, "Sam",       "sam@example.edu",    "hash", Role::STUDENT));
-    lib.accounts().addUser(User(2001, "A. Rivera", "rivera@example.edu", "hash", Role::LIBRARIAN));
-    lib.accounts().addUser(User(3001, "Admin",     "admin@example.edu",  "hash", Role::ADMINISTRATOR));
+    lib.accounts().addUser(User(1001, "Mike",      "mike@example.edu",   "", Role::STUDENT));
+    lib.accounts().addUser(User(1002, "Priya",     "priya@example.edu",  "", Role::STUDENT));
+    lib.accounts().addUser(User(1003, "Sam",       "sam@example.edu",    "", Role::STUDENT));
+    lib.accounts().addUser(User(2001, "A. Rivera", "rivera@example.edu", "", Role::LIBRARIAN));
+    lib.accounts().addUser(User(3001, "Admin",     "admin@example.edu",  "", Role::ADMINISTRATOR));
+
+    // Passwords are set through the system so each account stores a real
+    // salted, iterated digest rather than the placeholder string the records
+    // used to carry. Every demo account shares one password because this is
+    // sample data; the stored values still differ, because the salts do.
+    // Sample accounts use the reduced work factor so the demo starts
+    // immediately. See pwhash::DEMO_ITERATIONS for why that is safe here and
+    // would not be for a real account.
+    for (int id : {1001, 1002, 1003, 2001, 3001}) {
+        lib.setPassword(id, demo::PASSWORD, pwhash::DEMO_ITERATIONS);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +182,12 @@ std::vector<ScreenState> screenCoverage(LibrarySystem& lib) {
     const size_t unavailable  = unavailableTitleCount(lib);
     const size_t recCount     = lib.recommendationsFor(demo::PATRON_ID, 5).size();
     const size_t loanCount    = activeLoanCount(lib, demo::PATRON_ID);
-    const size_t overdueCount = lib.overdueNotices().size();
+    // Through the authorized entry point. An empty fixture has no librarian,
+    // in which case the call is refused and the count is zero, which is the
+    // right answer for a screen with nothing to show.
+    std::vector<OverdueNotice> notices;
+    lib.overdueReport(demo::LIBRARIAN_ID, notices);
+    const size_t overdueCount = notices.size();
     const size_t catalogSize  = lib.books().size();
     const size_t activityDepth= lib.activity().depth(demo::PATRON_ID);
     const size_t holdCount    = lib.reservations().totalWaiting();

@@ -1,22 +1,10 @@
-// ============================================================================
-// DueDateHeap.h
-// Smart Library Management System - CPSC 315
+// DueDateHeap.h - binary min-heap on due date, plus a map from loan ID to
+// array index.
 //
-// Binary min-heap of active loans, keyed on due date, stored in an array.
-// Parent of index i is at (i - 1) / 2; children are at 2i + 1 and 2i + 2.
-//
-// The problem this solves:
-//   A plain heap supports push and pop-min in O(log n), which covers the
-//   overdue report. It does NOT support removing an arbitrary element,
-//   because finding that element requires scanning the whole array at O(n).
-//   Books get returned before their due date constantly, so every early
-//   return would degrade to a linear scan.
-//
-// The fix:
-//   A hash map from loan ID to that loan's current array index. Every sift
-//   operation updates the map alongside the array, so removal becomes
-//   locate in O(1), swap with the last element, then sift: O(log n) total.
-// ============================================================================
+// A plain heap cannot remove an arbitrary element without an O(n) scan, and
+// early returns are the most frequent write the system has. The index map,
+// updated inside every sift, makes removal O(log n).
+
 #ifndef DUE_DATE_HEAP_H
 #define DUE_DATE_HEAP_H
 

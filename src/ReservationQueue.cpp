@@ -1,7 +1,5 @@
-// ============================================================================
 // ReservationQueue.cpp
-// Smart Library Management System - CPSC 315
-// ============================================================================
+
 #include "ReservationQueue.h"
 
 ReservationQueue::ReservationQueue() : total(0) {}
@@ -69,14 +67,9 @@ bool ReservationQueue::dequeue(const std::string& isbn, int* outUserId) {
     return true;
 }
 
-// ---------------------------------------------------------------------------
-// cancel: remove from anywhere in the line.
-//
-// The tail pointer is the trap here. Removing the last node without moving
-// the tail leaves it dangling at freed memory, and the next enqueue writes
-// through it. The previous-node pointer carried through the walk is what
-// makes the tail fixable without a second pass.
-// ---------------------------------------------------------------------------
+// Removes from anywhere in the line. The trap is the tail pointer: dropping
+// the last node without moving it leaves the next enqueue writing through
+// freed memory.
 bool ReservationQueue::cancel(const std::string& isbn, int userId) {
     auto it = lines.find(isbn);
     if (it == lines.end()) return false;
@@ -148,10 +141,8 @@ std::vector<std::string> ReservationQueue::titlesWithHolds() const {
     return out;
 }
 
-// ---------------------------------------------------------------------------
-// validate: counts are derived state and the tail pointer is a shortcut, so
-// both are checked against the chain they describe.
-// ---------------------------------------------------------------------------
+// Counts and the tail pointer are derived state, so both are checked against
+// the chain they describe.
 bool ReservationQueue::validate() const {
     size_t walked = 0;
 

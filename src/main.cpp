@@ -1,18 +1,19 @@
-// ============================================================================
-// main.cpp
-// Smart Library Management System - CPSC 315
-//
-// Test driver for the Module 3/4 core modules. Exercises the hash table, the
-// sorted linked list with its index, the integration layer, and the failure
-// paths that each is supposed to reject.
-// ============================================================================
+// main.cpp - test driver. Unit tests per structure, integration over full
+// checkout and return cycles, stress tests, published cryptographic vectors,
+// and a regression suite for every defect found during the project.
+
 #include "LibrarySystem.h"
 #include "DemoFixture.h"
+#include "PasswordHash.h"
+#include "Huffman.h"
+#include "Sha256.h"
 #include <iostream>
 #include <iomanip>
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <algorithm>
+#include <map>
 
 static int testsRun = 0;
 static int testsPassed = 0;
@@ -201,9 +202,13 @@ int main() {
         check("earliest due date unchanged by the removal",
               lib.deadlines().peekMin()->loanId == loanA);
 
-        // Advance past the first due date only.
+        // Advance past the first due date only. Reports go through the
+        // authorized entry point, so a staff account is needed.
+        lib.accounts().addUser(User(90, "Desk", "d@x.edu", "", Role::LIBRARIAN));
         lib.setToday(122);
-        std::vector<OverdueNotice> notices = lib.overdueNotices();
+        std::vector<OverdueNotice> notices;
+        check("staff may run the overdue report",
+              lib.overdueReport(90, notices) == Status::OK);
         check("one loan reported overdue", notices.size() == 1);
         check("overdue notice names the right account and title",
               notices.size() == 1 && notices[0].userId == 1 &&
@@ -215,9 +220,10 @@ int main() {
 
         // Advance past both.
         lib.setToday(130);
+        lib.overdueReport(90, notices);
         check("both loans overdue, earliest first",
-              lib.overdueNotices().size() == 2 &&
-              lib.overdueNotices()[0].daysLate > lib.overdueNotices()[1].daysLate);
+              notices.size() == 2 &&
+              notices[0].daysLate > notices[1].daysLate);
 
         (void)loanB;
     }
@@ -405,8 +411,11 @@ int main() {
         check("second return empties the heap", lib.deadlines().empty());
 
         lib.setToday(500);
+        lib.accounts().addUser(User(90, "Desk", "d@x.edu", "", Role::LIBRARIAN));
+        std::vector<OverdueNotice> afterReturns;
+        lib.overdueReport(90, afterReturns);
         check("no phantom overdue notice after both returns",
-              lib.overdueNotices().empty());
+              afterReturns.empty());
         check("copy count fully restored",
               lib.books().find("5550000000001")->copiesAvailable == 3);
         check("invariants hold after duplicate-title cycle", lib.validateAll());
@@ -758,6 +767,639 @@ int main() {
         check("failed undo put the entry back",
               f.activity().depth(1) == before);
         check("invariants hold after a failed undo", f.validateAll());
+    }
+
+    // =======================================================================
+    section("15. Regression: defects found in the Module 9 review");
+    // =======================================================================
+    // An outside review of the Module 9 package found four problems that the
+    // 163-check suite did not cover. Each is locked in below.
+
+    // DEFECT 1 - undoing a return re-dated the loan.
+    // The inverse of a return called checkout(), which assigns a fresh due
+    // date from today. Returning on day 10 and undoing it moved a day-21
+    // deadline to day 31, so an undo quietly granted a longer loan.
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5560000000001", "Re-dated", "A", "T", 1));
+        lib.accounts().addUser(User(1, "P", "p@x.edu", "h", Role::STUDENT));
+
+        lib.setToday(0);
+        int loanId = 0;
+        lib.checkout(1, "5560000000001", &loanId);
+        check("loan starts due on day 21",
+              lib.deadlines().peekMin()->dueDay == 21);
+
+        lib.setToday(10);
+        lib.returnBook(1, "5560000000001");
+        check("undo of the return succeeds", lib.undoLast(1) == Status::OK);
+        check("restored loan keeps its original due day",
+              lib.deadlines().peekMin() != nullptr &&
+              lib.deadlines().peekMin()->dueDay == 21);
+        check("restored loan keeps its original loan ID",
+              lib.deadlines().peekMin()->loanId == loanId);
+        check("invariants hold after restoring a loan", lib.validateAll());
+    }
+
+    // DEFECT 2 - undoing the newer of two loans on one title cleared the
+    // older one. The activity entry named only the ISBN, and the return path
+    // always removed the oldest loan ID for that account and title.
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5560000000002", "Two Copies", "A", "T", 2));
+        lib.accounts().addUser(User(1, "P", "p@x.edu", "h", Role::STUDENT));
+
+        lib.setToday(0);
+        int first = 0;  lib.checkout(1, "5560000000002", &first);
+        lib.setToday(5);
+        int second = 0; lib.checkout(1, "5560000000002", &second);
+        check("two distinct loans on one title", first != second);
+
+        check("undo of the second checkout succeeds",
+              lib.undoLast(1) == Status::OK);
+        check("exactly one loan remains", lib.deadlines().size() == 1);
+        check("the loan that remains is the FIRST one",
+              lib.deadlines().peekMin()->loanId == first);
+        check("the remaining loan kept its own due day",
+              lib.deadlines().peekMin()->dueDay == 21);
+        check("invariants hold after undoing a duplicate-title checkout",
+              lib.validateAll());
+    }
+
+    // DEFECT 3 - a reservation could vanish without being filled. The front
+    // patron was dequeued before their checkout was attempted, so a patron at
+    // their loan limit lost their place, nobody behind them was offered the
+    // copy, and the copy sat on the shelf with a queue still waiting.
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5560000000003", "Wanted", "A", "T", 1));
+        for (int i = 1; i <= 5; ++i) {
+            lib.books().insert(Book("556000000900" + std::to_string(i),
+                                    "Filler", "A", "T", 1));
+        }
+        lib.accounts().addUser(User(1, "Holder",  "a@x.edu", "h", Role::STUDENT));
+        lib.accounts().addUser(User(2, "Maxed",   "b@x.edu", "h", Role::STUDENT));
+        lib.accounts().addUser(User(3, "Waiting", "c@x.edu", "h", Role::STUDENT));
+
+        lib.checkout(1, "5560000000003");
+        for (int i = 1; i <= 5; ++i) {
+            lib.checkout(2, "556000000900" + std::to_string(i));
+        }
+        check("second patron is at the loan limit",
+              lib.accounts().findUser(2)->activeLoanCount()
+                  == LibrarySystem::MAX_ACTIVE_LOANS);
+
+        lib.reserve(2, "5560000000003");
+        lib.reserve(3, "5560000000003");
+        check("two patrons waiting",
+              lib.reservations().lengthOf("5560000000003") == 2);
+
+        int filledFor = 0;
+        lib.returnBook(1, "5560000000003", &filledFor);
+
+        check("the copy went to the next patron who could take it",
+              filledFor == 3);
+        check("that patron now holds it",
+              lib.accounts().findUser(3)->activeLoanCount() == 1);
+        check("the blocked patron kept their place in line",
+              lib.reservations().isWaiting("5560000000003", 2));
+        check("the blocked patron is now at the front",
+              lib.reservations().frontOf("5560000000003") == 2);
+        check("no copy left sitting on the shelf",
+              lib.books().find("5560000000003")->copiesAvailable == 0);
+        check("invariants hold after a partial fulfilment", lib.validateAll());
+    }
+
+    // DEFECT 4 - permission checks lived only in the interface. The Module 7
+    // write-up stated that they ran in the logic layer and that hiding a menu
+    // option was presentation rather than security. LibrarySystem had no role
+    // logic at all, so hiding the option was the entire control.
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5560000000004", "Any Book", "A", "T", 1));
+        lib.accounts().addUser(User(1, "Student",   "s@x.edu", "h", Role::STUDENT));
+        lib.accounts().addUser(User(2, "Librarian", "l@x.edu", "h", Role::LIBRARIAN));
+        lib.accounts().addUser(User(3, "Admin",     "a@x.edu", "h", Role::ADMINISTRATOR));
+
+        check("role test recognises a librarian", lib.isStaff(2));
+        check("role test recognises an administrator", lib.isStaff(3));
+        check("role test rejects a student", !lib.isStaff(1));
+        check("role test rejects an unknown account", !lib.isStaff(999));
+
+        std::vector<OverdueNotice> notices;
+        std::vector<std::string>   isbns;
+
+        check("a student is refused the overdue report",
+              lib.overdueReport(1, notices) == Status::NOT_AUTHORIZED);
+        check("a refused report returns no data", notices.empty());
+        check("a student is refused the inventory report",
+              lib.inventoryReport(1, isbns) == Status::NOT_AUTHORIZED);
+        check("a refused inventory report returns no data", isbns.empty());
+        check("a student is refused the hold report",
+              lib.holdReport(1, isbns) == Status::NOT_AUTHORIZED);
+
+        check("a librarian is allowed the overdue report",
+              lib.overdueReport(2, notices) == Status::OK);
+        check("an administrator is allowed the inventory report",
+              lib.inventoryReport(3, isbns) == Status::OK);
+        check("the allowed report actually returns the catalog",
+              isbns.size() == 1);
+        check("an unknown account is refused before the role check",
+              lib.overdueReport(999, notices) == Status::USER_NOT_FOUND);
+    }
+
+    // =======================================================================
+    section("16. Cryptographic primitives and password hashing");
+    // =======================================================================
+    // The primitives are checked against published test vectors first. An
+    // unverified hash implementation that merely agrees with itself proves
+    // nothing, and every higher-level password check below rests on these.
+    {
+        using namespace crypto;
+
+        // SHA-256, FIPS 180-4 examples.
+        check("SHA-256 of the empty string matches the published digest",
+              toHex(sha256(std::string(""))) ==
+              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        check("SHA-256 of \"abc\" matches the published digest",
+              toHex(sha256(std::string("abc"))) ==
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        check("SHA-256 of the 56-character example matches",
+              toHex(sha256(std::string(
+                  "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) ==
+              "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1");
+        check("SHA-256 spans multiple blocks correctly",
+              toHex(sha256(std::string(1000, 'a'))) ==
+              "41edece42d63e8d9bf515a9ba6932e1c20cbc9f5a5d134645adb5db1b9737ea3");
+
+        // HMAC-SHA256, RFC 4231 test cases 1 and 6.
+        check("HMAC-SHA256 matches RFC 4231 case 1",
+              toHex(hmacSha256(std::vector<unsigned char>(20, 0x0b),
+                               std::vector<unsigned char>{'H','i',' ','T','h','e','r','e'})) ==
+              "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
+        {
+            std::string msg = "Test Using Larger Than Block-Size Key - Hash Key First";
+            check("HMAC-SHA256 hashes an over-long key first (RFC 4231 case 6)",
+                  toHex(hmacSha256(std::vector<unsigned char>(131, 0xaa),
+                                   std::vector<unsigned char>(msg.begin(), msg.end()))) ==
+                  "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54");
+        }
+
+        // PBKDF2-HMAC-SHA256, RFC 7914 section 11.
+        {
+            std::string salt = "salt";
+            check("PBKDF2-HMAC-SHA256 matches RFC 7914 (c=1)",
+                  toHex(pbkdf2HmacSha256("passwd",
+                        std::vector<unsigned char>(salt.begin(), salt.end()), 1, 64)) ==
+                  "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"
+                  "49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783");
+        }
+        {
+            std::string salt = "NaCl";
+            check("PBKDF2-HMAC-SHA256 matches RFC 7914 (c=80000)",
+                  toHex(pbkdf2HmacSha256("Password",
+                        std::vector<unsigned char>(salt.begin(), salt.end()), 80000, 64)) ==
+                  "4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"
+                  "a1d425a1225833549adb841b51c9b3176a272bdebba1d078478f62b397f33c8d");
+        }
+        check("hex encoding round-trips", toHex(fromHex("00ff10ab")) == "00ff10ab");
+    }
+
+    // Password records built on those primitives.
+    {
+        const std::string pw = "correct horse battery staple";
+        const int FAST = pwhash::DEMO_ITERATIONS;
+
+        std::string a = pwhash::hashPassword(pw, FAST);
+        std::string b = pwhash::hashPassword(pw, FAST);
+
+        check("the record names its algorithm and factor",
+              a.rfind("pbkdf2_sha256$", 0) == 0 && pwhash::looksHashed(a));
+        check("the plaintext is nowhere in the record",
+              a.find(pw) == std::string::npos);
+        check("the same password hashes differently each time (salt works)",
+              a != b);
+        check("the correct password verifies against both records",
+              pwhash::verifyPassword(pw, a) && pwhash::verifyPassword(pw, b));
+        check("a one-character difference is rejected",
+              !pwhash::verifyPassword("correct horse battery stapl", a));
+        check("case matters", !pwhash::verifyPassword("Correct horse battery staple", a));
+        check("an empty password is rejected against a real record",
+              !pwhash::verifyPassword("", a));
+        check("an empty password can itself be hashed and verified",
+              pwhash::verifyPassword("", pwhash::hashPassword("", FAST)));
+        check("a non-record fails closed rather than matching",
+              !pwhash::verifyPassword(pw, "hash"));
+        check("the old FNV record format is no longer accepted",
+              !pwhash::verifyPassword(pw, "fnv1a$10000$aabb$ccdd"));
+        check("a truncated record fails closed",
+              !pwhash::verifyPassword(pw, "pbkdf2_sha256$10000$abc"));
+        check("a tampered digest fails",
+              !pwhash::verifyPassword(pw, a.substr(0, a.size() - 1) +
+                                      (a.back() == '0' ? '1' : '0')));
+        check("an absurd iteration count is refused rather than computed",
+              !pwhash::verifyPassword(pw, "pbkdf2_sha256$999999999$aabb$ccdd"));
+        check("the stored iteration count is used, not the constant",
+              pwhash::deriveDigest(pw, "aabb", 10)
+                  != pwhash::deriveDigest(pw, "aabb", 11));
+        check("a different salt gives a different digest",
+              pwhash::deriveDigest(pw, "aabb", 50)
+                  != pwhash::deriveDigest(pw, "ccdd", 50));
+
+        // One round trip at the real work factor, to prove the default path
+        // works end to end and not only the reduced one used above.
+        std::string strong = pwhash::hashPassword("production password");
+        check("a record at the default factor records 600000 iterations",
+              strong.find("$600000$") != std::string::npos);
+        check("a record at the default factor verifies",
+              pwhash::verifyPassword("production password", strong));
+        check("and rejects a wrong password at that factor",
+              !pwhash::verifyPassword("production passwerd", strong));
+    }
+
+    // Wired into the system, which is where it was missing before.
+    {
+        LibrarySystem lib;
+        lib.accounts().addUser(User(1, "P", "p@x.edu", "", Role::STUDENT));
+        check("an account with no password cannot be signed into",
+              !lib.authenticate(1, ""));
+        check("setting a password succeeds",
+              lib.setPassword(1, "letmein", pwhash::DEMO_ITERATIONS) == Status::OK);
+        check("the right password authenticates", lib.authenticate(1, "letmein"));
+        check("the wrong password does not", !lib.authenticate(1, "letmein2"));
+        check("an unknown account never authenticates",
+              !lib.authenticate(999, "letmein"));
+        check("the account stores a hash, not the password",
+              lib.accounts().findUser(1)->passwordHash.find("letmein")
+                  == std::string::npos);
+
+        // Two accounts, one password: the stored records must still differ.
+        lib.accounts().addUser(User(2, "Q", "q@x.edu", "", Role::STUDENT));
+        lib.setPassword(2, "letmein", pwhash::DEMO_ITERATIONS);
+        check("identical passwords store differently across accounts",
+              lib.accounts().findUser(1)->passwordHash
+                  != lib.accounts().findUser(2)->passwordHash);
+        check("but both still verify", lib.authenticate(1, "letmein") &&
+                                       lib.authenticate(2, "letmein"));
+    }
+
+    // =======================================================================
+    section("17. Huffman coding over a catalog export");
+    // =======================================================================
+    {
+        // Round-trip on the real export, which is the case that matters.
+        LibrarySystem lib;
+        buildDemoLibrary(lib);
+        const std::string exported = lib.catalogExport();
+
+        check("the catalog export is non-empty", !exported.empty());
+        check("the export has one line per title",
+              std::count(exported.begin(), exported.end(), '\n')
+                  == static_cast<long>(lib.books().size()));
+
+        huffman::Archive archive = huffman::encode(exported);
+        check("encoding produced bits", archive.bitCount > 0);
+        check("the export round-trips exactly",
+              huffman::decode(archive) == exported);
+        check("compressed payload is smaller than the original",
+              archive.bytes.size() < exported.size());
+
+        std::cout << "         demo export " << exported.size() << " bytes -> "
+                  << archive.bytes.size() << " payload + "
+                  << (archive.storedBytes() - archive.bytes.size())
+                  << " header = " << archive.storedBytes()
+                  << ", ratio " << archive.ratio() << "\n";
+
+        // The header costs five bytes per distinct symbol. On an export this
+        // small that is larger than the payload it describes, so the archive
+        // is bigger than the input even though the coding worked. This is a
+        // real property of Huffman, not a defect: the table is a fixed cost
+        // amortized over the data, and six books is not enough data.
+        check("the header outweighs the payload at demo scale",
+              (archive.storedBytes() - archive.bytes.size()) > archive.bytes.size());
+
+        // At a realistic catalog size the header is amortized and the
+        // compression shows its true value. This is the case the
+        // specification's "storage optimization" actually describes.
+        {
+            LibrarySystem big;
+            for (int i = 0; i < 5000; ++i) {
+                big.books().insert(Book(
+                    "978026213" + std::to_string(4000 + i),
+                    "Introduction to Computing Volume " + std::to_string(i),
+                    "Author " + std::to_string(i % 120),
+                    (i % 3 == 0) ? "Computing" : (i % 3 == 1 ? "History" : "Science"),
+                    (i % 5) + 1, 1960 + (i % 60)));
+            }
+            const std::string bigExport = big.catalogExport();
+            huffman::Archive bigArchive = huffman::encode(bigExport);
+
+            check("the large export round-trips exactly",
+                  huffman::decode(bigArchive) == bigExport);
+            check("at catalog scale the archive is smaller than the original",
+                  bigArchive.ratio() < 1.0);
+
+            std::cout << "         5,000-title export " << bigExport.size()
+                      << " bytes -> " << bigArchive.storedBytes()
+                      << " bytes stored, ratio " << bigArchive.ratio() << "\n";
+        }
+
+        // The defining property: rarer symbols get longer codes.
+        std::map<char, std::string> codes = huffman::codeTable(exported);
+        std::map<char, uint32_t> freq;
+        for (char c : exported) freq[c] += 1;
+
+        char commonest = exported[0], rarest = exported[0];
+        for (const auto& f : freq) {
+            if (f.second > freq[commonest]) commonest = f.first;
+            if (f.second < freq[rarest])    rarest    = f.first;
+        }
+        check("the commonest symbol has a code no longer than the rarest",
+              codes[commonest].size() <= codes[rarest].size());
+        check("no code is empty", codes[commonest].size() > 0);
+
+        // Prefix-free is what lets the stream omit separators. Verify it
+        // directly rather than trusting the construction.
+        bool prefixFree = true;
+        for (const auto& a : codes) {
+            for (const auto& b : codes) {
+                if (a.first == b.first) continue;
+                if (b.second.rfind(a.second, 0) == 0) prefixFree = false;
+            }
+        }
+        check("the code set is prefix-free", prefixFree);
+
+        // Edge cases.
+        check("empty input round-trips to empty",
+              huffman::decode(huffman::encode("")).empty());
+        check("a single character round-trips",
+              huffman::decode(huffman::encode("x")) == "x");
+        check("a run of one repeated symbol round-trips",
+              huffman::decode(huffman::encode(std::string(1000, 'a')))
+                  == std::string(1000, 'a'));
+        check("one repeated symbol compresses heavily",
+              huffman::encode(std::string(1000, 'a')).bytes.size() < 200);
+        check("text with every byte value round-trips", [] {
+            std::string all;
+            for (int i = 1; i < 256; ++i) all += static_cast<char>(i);
+            return huffman::decode(huffman::encode(all)) == all;
+        }());
+        check("encoding is deterministic across runs",
+              huffman::encode(exported).bytes == huffman::encode(exported).bytes);
+    }
+
+    // =======================================================================
+    section("18. Sorting by publication date");
+    // =======================================================================
+    {
+        LibrarySystem lib;
+        buildDemoLibrary(lib);
+        std::vector<std::string> byYear = lib.isbnsSortedByYear();
+
+        check("every title appears in the year view",
+              byYear.size() == lib.books().size());
+
+        bool descending = true;
+        for (size_t i = 1; i < byYear.size(); ++i) {
+            int prev = lib.books().find(byYear[i - 1])->year;
+            int cur  = lib.books().find(byYear[i])->year;
+            if (prev != 0 && cur != 0 && prev < cur) descending = false;
+        }
+        check("dated titles run newest first", descending);
+        check("the newest title leads",
+              lib.books().find(byYear.front())->year == 2014);
+        check("the oldest dated title trails",
+              lib.books().find(byYear.back())->year == 1988);
+
+        // An undated record must sort last, not first.
+        lib.books().insert(Book("5570000000001", "No Date", "Z", "T", 1));
+        byYear = lib.isbnsSortedByYear();
+        check("an undated title sorts to the end",
+              byYear.back() == "5570000000001");
+    }
+
+    // =======================================================================
+    section("19. Secondary word index on titles and authors");
+    // =======================================================================
+    {
+        LibrarySystem lib;
+        buildDemoLibrary(lib);
+        BookInventory& inv = lib.books();
+
+        check("the index holds words", inv.indexedWordCount() > 0);
+
+        std::vector<std::string> apollo = inv.findByWord("apollo");
+        check("a word query finds both Apollo titles", apollo.size() == 2);
+        check("the word query is case-insensitive",
+              inv.findByWord("APOLLO").size() == 2);
+        check("a word absent from the catalog finds nothing",
+              inv.findByWord("zebra").empty());
+
+        // Author words are indexed alongside title words.
+        check("an author surname is indexed",
+              inv.findByWord("hawking").size() == 1);
+
+        // Punctuation must not decide whether a title is findable.
+        check("a name with an apostrophe is tokenized",
+              inv.findByWord("brien").size() == 1);
+
+        // Multi-word queries intersect posting lists.
+        check("two words intersect to the title holding both",
+              inv.search("digital apollo").size() == 1);
+        check("two words with no title in common find nothing by index, and "
+              "the substring fallback also finds nothing",
+              inv.search("hawking apollo").empty());
+
+        // The fallback covers what a token index structurally cannot.
+        check("a partial word misses the index but the fallback finds it",
+              inv.findByWord("apol").empty() && inv.search("apol").size() == 2);
+
+        // The index has to stay in step with the table through writes.
+        inv.insert(Book("5580000000001", "Zebra Patterns", "Quill", "T", 1));
+        check("a new record is indexed immediately",
+              inv.findByWord("zebra").size() == 1);
+        inv.remove("5580000000001");
+        check("a removed record leaves no index entry",
+              inv.findByWord("zebra").empty());
+
+        // Overwriting a record must retire the old title's words.
+        inv.insert(Book("5580000000002", "Old Name", "A", "T", 1));
+        check("the first title is indexed", inv.findByWord("old").size() == 1);
+        inv.insert(Book("5580000000002", "New Name", "A", "T", 1));
+        check("the replaced title's words are gone",
+              inv.findByWord("old").empty());
+        check("the replacement title's words are present",
+              inv.findByWord("new").size() == 1);
+
+        // At scale the index is what makes a title query cheap.
+        LibrarySystem big;
+        for (int i = 0; i < 5000; ++i) {
+            big.books().insert(Book("978026213" + std::to_string(4000 + i),
+                                    "Volume " + std::to_string(i),
+                                    "Author " + std::to_string(i % 120),
+                                    "Computing", 1, 2000));
+        }
+        check("a word shared by every title returns every title",
+              big.books().findByWord("volume").size() == 5000);
+        check("a single rare title is found without scanning the catalog",
+              big.books().findByWord("4999").size() == 1);
+    }
+
+    // =======================================================================
+    section("20. Staff management of the catalog and accounts");
+    // =======================================================================
+    {
+        LibrarySystem lib;
+        lib.accounts().addUser(User(1, "Student",   "s@x.edu", "", Role::STUDENT));
+        lib.accounts().addUser(User(2, "Librarian", "l@x.edu", "", Role::LIBRARIAN));
+        lib.books().insert(Book("5590000000001", "Existing", "A", "T", 1, 2000));
+
+        Book fresh("5590000000002", "Brand New", "B", "T", 2, 2021);
+
+        check("a student cannot add a book",
+              lib.addBook(1, fresh) == Status::NOT_AUTHORIZED);
+        check("the refused add changed nothing",
+              lib.books().find("5590000000002") == nullptr);
+        check("a librarian can add a book",
+              lib.addBook(2, fresh) == Status::OK);
+        check("the added book is in the catalog",
+              lib.books().find("5590000000002") != nullptr);
+        check("the added book is searchable immediately",
+              lib.books().findByWord("brand").size() == 1);
+        check("adding the same ISBN twice is refused",
+              lib.addBook(2, fresh) == Status::ALREADY_EXISTS);
+
+        check("a student cannot remove a book",
+              lib.removeBook(1, "5590000000002") == Status::NOT_AUTHORIZED);
+        check("removing an unknown ISBN says so",
+              lib.removeBook(2, "0000000000000") == Status::BOOK_NOT_FOUND);
+        check("a librarian can remove an unused book",
+              lib.removeBook(2, "5590000000002") == Status::OK);
+
+        // A book with copies out must not be removable.
+        lib.checkout(1, "5590000000001");
+        check("a book with copies out cannot be removed",
+              lib.removeBook(2, "5590000000001") == Status::STILL_IN_USE);
+        check("the refused removal left the record in place",
+              lib.books().find("5590000000001") != nullptr);
+
+        // Nor one with a hold queue.
+        lib.accounts().addUser(User(3, "Waiter", "w@x.edu", "", Role::STUDENT));
+        lib.reserve(3, "5590000000001");
+        lib.returnBook(1, "5590000000001");          // fulfils patron 3
+        check("the hold was filled by the return",
+              lib.accounts().findUser(3)->activeLoanCount() == 1);
+        check("still unremovable while that copy is out",
+              lib.removeBook(2, "5590000000001") == Status::STILL_IN_USE);
+        lib.returnBook(3, "5590000000001");
+        check("removable once every copy is back",
+              lib.removeBook(2, "5590000000001") == Status::OK);
+
+        // Accounts.
+        check("a student cannot create an account",
+              lib.addAccount(1, User(9, "New", "n@x.edu", "", Role::STUDENT),
+                             "pw") == Status::NOT_AUTHORIZED);
+        check("a librarian can create an account",
+              lib.addAccount(2, User(9, "New", "n@x.edu", "", Role::STUDENT),
+                             "pw") == Status::OK);
+        check("the new account can sign in with its password",
+              lib.authenticate(9, "pw"));
+        check("the new account did not store its password in the clear",
+              lib.accounts().findUser(9)->passwordHash.find("pw")
+                  == std::string::npos);
+        check("a duplicate account ID is refused",
+              lib.addAccount(2, User(9, "Dup", "d@x.edu", "", Role::STUDENT),
+                             "pw") == Status::ALREADY_EXISTS);
+
+        lib.books().insert(Book("5590000000003", "Held", "C", "T", 1, 2001));
+        lib.checkout(9, "5590000000003");
+        check("an account holding a loan cannot be removed",
+              lib.removeAccount(2, 9) == Status::STILL_IN_USE);
+        lib.returnBook(9, "5590000000003");
+        check("the account can be removed once it holds nothing",
+              lib.removeAccount(2, 9) == Status::OK);
+        check("the removed account is gone",
+              lib.accounts().findUser(9) == nullptr);
+        check("the removed account can no longer authenticate",
+              !lib.authenticate(9, "pw"));
+        check("invariants hold after management operations", lib.validateAll());
+    }
+
+    // =======================================================================
+    section("21. Regression: second review round");
+    // =======================================================================
+
+    // Two copies of one title must produce two loans, listed once each, with
+    // their own deadlines. loansFor walked borrowedIsbns, which holds the
+    // ISBN once per copy, and expanded the whole loan list on each pass, so
+    // two loans came back as four. The account screen then showed the earlier
+    // deadline against both rows.
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5600000000001", "Two Copies", "A", "T", 2, 2001));
+        lib.accounts().addUser(User(1, "P", "p@x.edu", "", Role::STUDENT));
+
+        lib.setToday(0);
+        int first = 0;  lib.checkout(1, "5600000000001", &first);
+        lib.setToday(5);
+        int second = 0; lib.checkout(1, "5600000000001", &second);
+
+        std::vector<LoanEntry> loans = lib.loansFor(1);
+        check("two copies produce exactly two loan entries", loans.size() == 2);
+        check("the two entries have distinct loan IDs",
+              loans.size() == 2 && loans[0].loanId != loans[1].loanId);
+
+        bool has21 = false, has26 = false;
+        for (const LoanEntry& l : loans) {
+            if (l.dueDay == 21) has21 = true;
+            if (l.dueDay == 26) has26 = true;
+        }
+        check("each loan carries its own due date", has21 && has26);
+
+        // Undo must still remove the newer loan and leave the older intact.
+        check("undo of the second checkout succeeds", lib.undoLast(1) == Status::OK);
+        loans = lib.loansFor(1);
+        check("one loan remains after the undo", loans.size() == 1);
+        check("the remaining loan is the first, still due on day 21",
+              loans.size() == 1 && loans[0].loanId == first && loans[0].dueDay == 21);
+        check("invariants hold", lib.validateAll());
+        (void)second;
+    }
+
+    // A patron holding three copies must still be listed once per loan.
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5600000000002", "Three Copies", "A", "T", 3, 2002));
+        lib.accounts().addUser(User(1, "P", "p@x.edu", "", Role::STUDENT));
+        for (int day = 0; day < 3; ++day) {
+            lib.setToday(day * 10);
+            lib.checkout(1, "5600000000002");
+        }
+        check("three copies produce three loan entries",
+              lib.loansFor(1).size() == 3);
+    }
+
+    // The overdue builder is no longer reachable without authorization. The
+    // guarded report is the only entry point, and a refusal clears whatever
+    // the caller passed in rather than leaving stale rows visible.
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5600000000003", "Late", "A", "T", 1, 2003));
+        lib.accounts().addUser(User(1, "Student", "s@x.edu", "", Role::STUDENT));
+        lib.accounts().addUser(User(2, "Desk",    "d@x.edu", "", Role::LIBRARIAN));
+
+        lib.setToday(0);
+        lib.checkout(1, "5600000000003");
+        lib.setToday(100);
+
+        std::vector<OverdueNotice> notices;
+        check("staff get the overdue list",
+              lib.overdueReport(2, notices) == Status::OK && notices.size() == 1);
+
+        // Pre-fill, then be refused: the refusal must not leave data behind.
+        check("a student is refused",
+              lib.overdueReport(1, notices) == Status::NOT_AUTHORIZED);
+        check("the refusal cleared the caller's buffer", notices.empty());
     }
 
     // -----------------------------------------------------------------------

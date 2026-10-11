@@ -1,30 +1,14 @@
-// ============================================================================
-// Recommender.h
-// Smart Library Management System - CPSC 315
+// Recommender.h - co-borrowing graph plus a score BST.
 //
-// Two structures working together:
+// The graph finds candidates, because a graph can hold arbitrary connections
+// between titles. The tree ranks them, because a graph has no ordering.
+// Reverse in-order traversal yields highest score first.
 //
-//   1. A co-borrowing GRAPH. Each vertex is a book. An edge between two books
-//      carries a weight equal to the number of users who borrowed both. The
-//      graph is stored as an adjacency list, since a catalog is sparse: most
-//      pairs of books share no borrower at all, and a matrix would allocate
-//      n^2 slots to store mostly zeros.
-//
-//   2. A score BST. Candidate books from the graph walk are inserted keyed on
-//      (score, ISBN). The score is what the user cares about; the ISBN breaks
-//      ties so two books with the same score still get one deterministic
-//      position instead of depending on insertion order.
-//
-// Why a BST rather than sorting a vector:
-//      A reverse in-order traversal reads the tree highest score first, so
-//      the top N recommendations come off the front of the traversal and the
-//      walk can stop early. Sorting the whole candidate list would order
-//      results the user never scrolls to.
-//
-// Neighbor cap:
-//      Each book keeps at most MAX_NEIGHBORS edges, retaining the heaviest.
-//      This bounds the graph walk regardless of how popular a title becomes.
-// ============================================================================
+// Edges are an adjacency list, not a matrix: borrowing is sparse. Each title
+// keeps its 50 strongest edges so a popular book cannot link to the whole
+// catalog. The tree is unbalanced; it is rebuilt per request from a bounded
+// candidate set, so the depth stays small in practice.
+
 #ifndef RECOMMENDER_H
 #define RECOMMENDER_H
 

@@ -1,10 +1,7 @@
-// ============================================================================
-// User.h
-// Smart Library Management System - CPSC 315
-//
-// Account record. Role controls which menu options the interface offers.
-// passwordHash stores a hash of the password, never the password itself.
-// ============================================================================
+// User.h - account record. Role controls which menu options appear and which
+// LibrarySystem operations are permitted. passwordHash stores a hash record,
+// never a password.
+
 #ifndef USER_H
 #define USER_H
 

@@ -1,7 +1,5 @@
-// ============================================================================
 // Recommender.cpp
-// Smart Library Management System - CPSC 315
-// ============================================================================
+
 #include "Recommender.h"
 #include <algorithm>
 #include <unordered_set>

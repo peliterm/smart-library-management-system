@@ -1,26 +1,11 @@
-// ============================================================================
-// DemoFixture.h
-// Smart Library Management System - CPSC 315
+// DemoFixture.h - seed data, the dynamic screen list, and a coverage check.
 //
-// Module 9 addition. The seed data used to run the system was previously
-// written inside LibraryUI, which meant the test driver could not see it.
-// That gap caused a real failure: during the Module 8 dry run, two screens
-// rendered empty because the seed contained a catalog and accounts but no
-// borrowing history. Every underlying operation worked. Nothing was broken.
-// There was simply nothing for those screens to display, and no test had an
-// opinion about that, because the fixture lived where tests could not reach.
-//
-// Moving the fixture here makes it a tested artifact rather than a constant
-// buried in the interface layer. Both the application and the test driver
-// build their data from the same functions, so a change that empties a screen
-// fails the build instead of surfacing during a rehearsal.
-//
-// The design follows from one idea: every dynamic screen has at least two
-// states, populated and empty, and a fixture is only correct with respect to
-// the state it is meant to produce. So the screens are enumerated, each
-// fixture declares which state it targets, and the coverage check verifies
-// the fixture actually reaches it.
-// ============================================================================
+// The fixture used to live inside LibraryUI, which the test driver does not
+// link, so no test could see it. That is how the Module 8 dry run ended up
+// with two empty screens while every test passed. Each fixture below declares
+// the interface state it exists to produce, and screenCoverage verifies it
+// reaches it.
+
 #ifndef DEMO_FIXTURE_H
 #define DEMO_FIXTURE_H
 
@@ -28,12 +13,9 @@
 #include <string>
 #include <vector>
 
-// ---------------------------------------------------------------------------
-// The dynamic screens. "Dynamic" means the content depends on system state
-// rather than on static layout, so the screen can render empty even when the
-// code behind it is correct. Static screens (the sign-in prompt, the menus)
-// are not listed because they cannot be emptied by a change to the data.
-// ---------------------------------------------------------------------------
+// Screens whose content depends on system state, so they can render empty
+// while the code behind them is correct. Menus are not listed: data cannot
+// empty them.
 enum class Screen {
     SearchResults,      // catalog search returns at least one match
     UnavailableTitle,   // a title with every copy out, so a refusal can occur
@@ -63,6 +45,7 @@ namespace demo {
     extern const std::string SEARCH_TERM;               // typed into search
     extern const std::string BORROWED_ISBN;             // borrowed in scene 1
     extern const std::string UNAVAILABLE_ISBN;          // refused in scene 2
+    extern const std::string PASSWORD;                  // every demo account
 }
 
 // ---------------------------------------------------------------------------
@@ -83,19 +66,10 @@ void buildEmptyHistoryLibrary(LibrarySystem& lib);
 // catalog-level ones that buildEmptyHistoryLibrary still populates.
 void buildEmptyLibrary(LibrarySystem& lib);
 
-// ---------------------------------------------------------------------------
-// Coverage check.
-//
-// Replays the scripted demo path against whatever fixture is already loaded,
-// then reports whether each screen has content. The replay matters: the
-// account and recommendation screens are empty for the demo patron until the
-// scripted checkout in scene 1 runs, so checking the fixture at rest would
-// report a false failure. The check measures what the audience sees, not what
-// the fixture looks like before anyone touches it.
-//
-// This mutates the system it is given, so tests pass it their own instance.
-// The application never calls it.
-// ---------------------------------------------------------------------------
+// Replays the scripted demo path, then reports whether each screen has
+// content. The replay matters: several screens are legitimately empty until
+// the patron acts, so checking the fixture at rest would report false
+// failures. Mutates the system it is given; the application never calls it.
 struct ScreenState {
     Screen screen;
     bool   populated;
