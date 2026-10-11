@@ -49,8 +49,11 @@ private:
     void returnFlow();
     void myAccount();
     void recommendations();
+    void reserveFlow();      // join a hold line (queue)
+    void activityFlow();     // recent activity, with undo (stack)
     void inventoryReport();  // librarian and administrator only
     void overdueReport();    // librarian and administrator only
+    void holdsReport();      // librarian and administrator only
 
     // --- helpers ---
     void header(const std::string& screenName) const;

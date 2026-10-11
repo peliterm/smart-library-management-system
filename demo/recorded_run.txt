@@ -23,10 +23,12 @@ Account ID:
    3. Return a book
    4. My account
    5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
 
-   6. Sign out
+   8. Sign out
 
-Select [1-6]: 
+Select [1-8]: 
 --------------------------------------------------------
  SEARCH CATALOG                          Mike / Student
 --------------------------------------------------------
@@ -50,10 +52,12 @@ Press Enter to continue.
    3. Return a book
    4. My account
    5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
 
-   6. Sign out
+   8. Sign out
 
-Select [1-6]: 
+Select [1-8]: 
 --------------------------------------------------------
  SEARCH CATALOG                          Mike / Student
 --------------------------------------------------------
@@ -76,10 +80,39 @@ Press Enter to continue.
    3. Return a book
    4. My account
    5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
 
-   6. Sign out
+   8. Sign out
 
-Select [1-6]: 
+Select [1-8]: 
+--------------------------------------------------------
+ RESERVE A TITLE                         Mike / Student
+--------------------------------------------------------
+ Titles with every copy checked out:
+
+   1. The Apollo Guidance Computer      no one waiting
+   2. Cancel
+
+Select [1-2]: 
+   Reserved. You are number 1 in line.
+   The next copy returned goes to the front of the line.
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                               Mike / Student
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
+
+   8. Sign out
+
+Select [1-8]: 
 --------------------------------------------------------
  RECOMMENDED FOR YOU                     Mike / Student
 --------------------------------------------------------
@@ -96,10 +129,12 @@ Press Enter to continue.
    3. Return a book
    4. My account
    5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
 
-   6. Sign out
+   8. Sign out
 
-Select [1-6]: 
+Select [1-8]: 
 --------------------------------------------------------
  MY ACCOUNT                              Mike / Student
 --------------------------------------------------------
@@ -117,10 +152,39 @@ Press Enter to continue.
    3. Return a book
    4. My account
    5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
 
-   6. Sign out
+   8. Sign out
 
-Select [1-6]: 
+Select [1-8]: 
+--------------------------------------------------------
+ MY RECENT ACTIVITY                      Mike / Student
+--------------------------------------------------------
+ Most recent first. Day numbers are system days.
+
+   1. Reserved              The Apollo Guidance Computer    day 100
+   2. Borrowed              Digital Apollo                  day 100
+
+   Only the most recent action can be undone.
+   1. Undo "Reserved"
+   2. Back
+
+Select [1-2]: 
+--------------------------------------------------------
+ MAIN MENU                               Mike / Student
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
+
+   8. Sign out
+
+Select [1-8]: 
 --------------------------------------------------------
  SIGN IN                             
 --------------------------------------------------------
@@ -141,14 +205,17 @@ Account ID:
    3. Return a book
    4. My account
    5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
 
    Staff functions
-   6. Overdue report
-   7. Inventory report
+    8. Overdue report
+    9. Inventory report
+   10. Hold lists
 
-   8. Sign out
+   11. Sign out
 
-Select [1-8]: 
+Select [1-11]: 
 --------------------------------------------------------
  OVERDUE REPORT                      A. Rivera / Librarian
 --------------------------------------------------------
@@ -168,14 +235,17 @@ Press Enter to continue.
    3. Return a book
    4. My account
    5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
 
    Staff functions
-   6. Overdue report
-   7. Inventory report
+    8. Overdue report
+    9. Inventory report
+   10. Hold lists
 
-   8. Sign out
+   11. Sign out
 
-Select [1-8]: 
+Select [1-11]: 
 --------------------------------------------------------
  INVENTORY REPORT                    A. Rivera / Librarian
 --------------------------------------------------------
@@ -199,14 +269,47 @@ Press Enter to continue.
    3. Return a book
    4. My account
    5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
 
    Staff functions
-   6. Overdue report
-   7. Inventory report
+    8. Overdue report
+    9. Inventory report
+   10. Hold lists
 
-   8. Sign out
+   11. Sign out
 
-Select [1-8]: 
+Select [1-11]: 
+--------------------------------------------------------
+ HOLD LISTS                          A. Rivera / Librarian
+--------------------------------------------------------
+ Waiting lists, in the order patrons will be served:
+
+   The Apollo Guidance Computer
+      1. Mike (1001)
+
+ Total patrons waiting: 1
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                           A. Rivera / Librarian
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+   6. Reserve a title that is out
+   7. My recent activity
+
+   Staff functions
+    8. Overdue report
+    9. Inventory report
+   10. Hold lists
+
+   11. Sign out
+
+Select [1-11]: 
 --------------------------------------------------------
  SIGN IN                             
 --------------------------------------------------------

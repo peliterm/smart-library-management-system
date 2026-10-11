@@ -25,6 +25,8 @@
 #include "UserAccounts.h"
 #include "DueDateHeap.h"
 #include "Recommender.h"
+#include "ActivityLog.h"
+#include "ReservationQueue.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -36,7 +38,13 @@ enum class Status {
     BOOK_NOT_FOUND,
     NO_COPIES_AVAILABLE,
     LOAN_LIMIT_REACHED,
-    NOT_CHECKED_OUT
+    NOT_CHECKED_OUT,
+    // Module 9 additions, for the reservation and undo paths.
+    ALREADY_RESERVED,
+    NOT_RESERVED,
+    COPY_IS_AVAILABLE,     // reserving is pointless; borrow it instead
+    NOTHING_TO_UNDO,
+    UNDO_NOT_POSSIBLE      // the action could not be reversed from here
 };
 
 std::string statusMessage(Status s);
@@ -57,10 +65,12 @@ public:
     static constexpr size_t MAX_ACTIVE_LOANS = 5;
     static constexpr int    LOAN_PERIOD_DAYS = 21;
 
-    BookInventory& books()       { return inventory; }
-    UserAccounts&  accounts()    { return users; }
-    DueDateHeap&   deadlines()   { return dueDates; }
-    Recommender&   recommender() { return recs; }
+    BookInventory&    books()        { return inventory; }
+    UserAccounts&     accounts()     { return users; }
+    DueDateHeap&      deadlines()    { return dueDates; }
+    Recommender&      recommender()  { return recs; }
+    ActivityLog&      activity()     { return log; }
+    ReservationQueue& reservations() { return holds; }
 
     // Current day number. Advancing it is how tests simulate time passing.
     int  today() const { return currentDay; }
@@ -72,7 +82,34 @@ public:
 
     // Returns a copy, clears the loan from the account, and removes it from
     // the due-date heap by loan ID rather than searching for it.
-    Status returnBook(int userId, const std::string& isbn);
+    //
+    // If anyone is waiting on the title, the returned copy is handed to the
+    // patron at the front of the reservation queue rather than going back on
+    // the shelf. When that happens and outFilledFor is supplied, it receives
+    // that patron's ID so the interface can say who got it.
+    Status returnBook(int userId, const std::string& isbn,
+                      int* outFilledFor = nullptr);
+
+    // ---- Module 9: reservations (queue) ----
+
+    // Join the hold line for a title. Refused when a copy is on the shelf,
+    // because the patron should simply borrow it, and when this patron is
+    // already in the line.
+    Status reserve(int userId, const std::string& isbn);
+
+    // Leave the hold line.
+    Status cancelReservation(int userId, const std::string& isbn);
+
+    // ---- Module 9: activity log (stack) ----
+
+    // Reverse this account's most recent action. Pops the activity stack and
+    // applies the inverse operation. If the inverse fails, the entry is
+    // pushed back so the stack still describes what actually happened.
+    //
+    // This is the mis-scan case: a staff member checking in a stack of books
+    // scans one twice, notices, and backs it out without having to work out
+    // what the previous state was.
+    Status undoLast(int userId, ActivityEntry* outUndone = nullptr);
 
     // Every loan due on or before today, earliest first.
     std::vector<OverdueNotice> overdueNotices();
@@ -93,13 +130,22 @@ public:
     bool validateAll() const;
 
 private:
-    BookInventory inventory;
-    UserAccounts  users;
-    DueDateHeap   dueDates;
-    Recommender   recs;
+    BookInventory    inventory;
+    UserAccounts     users;
+    DueDateHeap      dueDates;
+    Recommender      recs;
+    ActivityLog      log;        // stack per account
+    ReservationQueue holds;      // FIFO queue per title
 
     int currentDay;
     int nextLoanId;
+
+    // Set while undoLast is applying an inverse operation. The inverse must
+    // not push its own activity entry, or undoing a checkout would record a
+    // return, and undoing that would re-borrow the book forever.
+    bool suppressLogging;
+
+    void record(int userId, ActivityType type, const std::string& isbn);
 
     // Maps (userId, isbn) to that user's outstanding loan IDs for the title.
     //

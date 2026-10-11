@@ -7,9 +7,12 @@
 // paths that each is supposed to reject.
 // ============================================================================
 #include "LibrarySystem.h"
+#include "DemoFixture.h"
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <vector>
+#include <cstdint>
 
 static int testsRun = 0;
 static int testsPassed = 0;
@@ -226,10 +229,19 @@ int main() {
         DueDateHeap heap;
         const int LOANS = 2000;
         // Deterministic pseudo-random spread so the test is repeatable.
-        int seed = 12345;
+        //
+        // The multiply is done in uint32_t, not int. Signed overflow is
+        // undefined behavior in C++, and this generator overflows on its
+        // first step by design, so the original signed version was relying
+        // on behavior the standard does not define. UndefinedBehaviorSanitizer
+        // flagged it during the Module 9 review. Unsigned overflow is defined
+        // to wrap, which is exactly the arithmetic a linear congruential
+        // generator wants.
+        uint32_t seed = 12345u;
         for (int i = 0; i < LOANS; ++i) {
-            seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF;
-            heap.push(LoanEntry(i, i % 50, "isbn", seed % 10000));
+            seed = (seed * 1103515245u + 12345u) & 0x7FFFFFFFu;
+            heap.push(LoanEntry(i, i % 50, "isbn",
+                                static_cast<int>(seed % 10000u)));
         }
         check("all loans pushed", heap.size() == static_cast<size_t>(LOANS));
         check("heap valid after 2,000 inserts", heap.validate());
@@ -434,6 +446,318 @@ int main() {
               lib.returnBook(2, "5550000000002") == Status::NOT_CHECKED_OUT);
         check("failed return does not inflate the copy count",
               lib.books().find("5550000000002")->copiesAvailable == 0);
+    }
+
+    // =======================================================================
+    section("11. Interface-state coverage of the demo fixture");
+    // =======================================================================
+    // Added in Module 9, in response to instructor feedback on the Module 8
+    // post. The Module 8 dry run turned up two empty screens. Nothing was
+    // broken: the recommendation and overdue features had no data to show
+    // because the seed contained a catalog and accounts but no borrowing
+    // history. Every test passed, because no test knew the screens existed.
+    //
+    // The checks below close that gap. They assert the property the dry run
+    // was relied on to catch, which is that the fixture reaches the state
+    // each screen is meant to demonstrate.
+    {
+        LibrarySystem lib;
+        buildDemoLibrary(lib);
+
+        check("fixture leaves the system consistent", lib.validateAll());
+
+        // The point of the section: every dynamic screen has content under
+        // the demo fixture, checked by walking the enumerated screen list
+        // rather than a hand-maintained set.
+        std::vector<ScreenState> coverage = screenCoverage(lib);
+        check("coverage check inspects every declared screen",
+              coverage.size() == allScreens().size());
+
+        for (const ScreenState& st : coverage) {
+            check(std::string("populated under demo fixture: ") + screenName(st.screen),
+                  st.populated);
+        }
+
+        // Spot-check the counts the demo narration actually quotes, so a
+        // fixture change that keeps a screen non-empty but alters what the
+        // audience is told still fails here.
+        for (const ScreenState& st : coverage) {
+            if (st.screen == Screen::OverdueReport) {
+                check("overdue report shows the two loans the script names",
+                      st.itemCount == 2);
+            }
+            if (st.screen == Screen::Recommendations) {
+                check("recommendations are non-empty and bounded by the limit",
+                      st.itemCount >= 1 && st.itemCount <= 5);
+            }
+        }
+    }
+
+    // The empty states are real states, not failures, so they get a fixture
+    // of their own rather than being covered by accident. This is the exact
+    // condition that produced the Module 8 blank screens, kept deliberately.
+    {
+        LibrarySystem lib;
+        buildEmptyHistoryLibrary(lib);
+
+        check("no-history fixture is consistent", lib.validateAll());
+
+        std::vector<ScreenState> coverage = screenCoverage(lib);
+        for (const ScreenState& st : coverage) {
+            switch (st.screen) {
+                case Screen::Recommendations:
+                    check("no-history fixture: recommendations render empty",
+                          !st.populated);
+                    break;
+                case Screen::OverdueReport:
+                    check("no-history fixture: overdue report renders empty",
+                          !st.populated);
+                    break;
+                case Screen::SearchResults:
+                    check("no-history fixture: search still finds the catalog",
+                          st.populated);
+                    break;
+                case Screen::InventoryTotals:
+                    check("no-history fixture: inventory totals still populate",
+                          st.populated);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    // An empty catalog must not crash the screens that read it. The counts
+    // all collapse to zero rather than the code faulting on a missing book.
+    {
+        LibrarySystem lib;
+        buildEmptyLibrary(lib);
+
+        check("empty fixture is consistent", lib.validateAll());
+
+        std::vector<ScreenState> coverage = screenCoverage(lib);
+        bool anyPopulated = false;
+        for (const ScreenState& st : coverage) {
+            if (st.populated) anyPopulated = true;
+        }
+        check("empty fixture leaves every screen empty without faulting",
+              !anyPopulated);
+    }
+
+    // =======================================================================
+    section("12. Activity log: the per-account stack");
+    // =======================================================================
+    {
+        ActivityLog log;
+        check("empty log reports nothing", log.peek(7) == nullptr);
+        check("empty log has zero depth", log.depth(7) == 0);
+        check("empty log validates", log.validate());
+
+        log.push(7, ActivityEntry(ActivityType::CHECKOUT, "A", 10));
+        log.push(7, ActivityEntry(ActivityType::RETURN,   "A", 12));
+        log.push(7, ActivityEntry(ActivityType::RESERVE,  "B", 13));
+
+        check("depth tracks pushes", log.depth(7) == 3);
+        check("peek returns the newest entry",
+              log.peek(7) != nullptr && log.peek(7)->isbn == "B");
+
+        // Newest first is the property the undo and the display both rely on.
+        std::vector<ActivityEntry> recent = log.recent(7, 2);
+        check("recent returns newest first",
+              recent.size() == 2 && recent[0].isbn == "B" && recent[1].isbn == "A");
+        check("reading the stack does not consume it", log.depth(7) == 3);
+
+        ActivityEntry popped;
+        check("pop returns the newest", log.pop(7, &popped) && popped.isbn == "B");
+        check("pop reduces depth", log.depth(7) == 2);
+
+        // Separate accounts must not share a chain.
+        log.push(9, ActivityEntry(ActivityType::CHECKOUT, "Z", 14));
+        check("accounts keep separate stacks",
+              log.depth(7) == 2 && log.depth(9) == 1);
+        check("total counts every account", log.totalEntries() == 3);
+        check("log validates after mixed operations", log.validate());
+
+        while (log.pop(7, nullptr)) {}
+        check("drained account reports empty", log.depth(7) == 0);
+        check("drained account has no peek", log.peek(7) == nullptr);
+        check("log validates after draining", log.validate());
+    }
+
+    // =======================================================================
+    section("13. Reservation queue: FIFO hold lines per title");
+    // =======================================================================
+    {
+        ReservationQueue q;
+        check("empty queue validates", q.validate());
+        check("empty line has no front", q.frontOf("X") == 0);
+
+        check("first patron joins",  q.enqueue("X", 100));
+        check("second patron joins", q.enqueue("X", 200));
+        check("third patron joins",  q.enqueue("X", 300));
+        check("line length tracked", q.lengthOf("X") == 3);
+        check("front is the first to ask", q.frontOf("X") == 100);
+
+        // The ordering guarantee is the reason this is a queue.
+        std::vector<int> line = q.waitingOn("X");
+        check("line is in arrival order",
+              line.size() == 3 && line[0] == 100 && line[1] == 200 && line[2] == 300);
+
+        check("a patron cannot take two places", !q.enqueue("X", 200));
+        check("refused duplicate left the line unchanged", q.lengthOf("X") == 3);
+
+        // Cancelling from the middle. The tail pointer is the thing that
+        // breaks if this is done carelessly, so the next enqueue after a
+        // middle removal is the real test.
+        check("middle patron cancels", q.cancel("X", 200));
+        check("line shortens", q.lengthOf("X") == 2);
+        line = q.waitingOn("X");
+        check("order survives a middle removal",
+              line.size() == 2 && line[0] == 100 && line[1] == 300);
+
+        // Cancelling the tail, then enqueueing again. A stale tail pointer
+        // would either lose this entry or write through freed memory.
+        check("tail patron cancels", q.cancel("X", 300));
+        check("enqueue after tail removal works", q.enqueue("X", 400));
+        line = q.waitingOn("X");
+        check("new patron lands at the back",
+              line.size() == 2 && line[0] == 100 && line[1] == 400);
+        check("queue validates after tail churn", q.validate());
+
+        int served = 0;
+        check("dequeue serves the front", q.dequeue("X", &served) && served == 100);
+        check("dequeue serves in order", q.dequeue("X", &served) && served == 400);
+        check("drained line is gone", q.lengthOf("X") == 0);
+        check("dequeue on an empty line fails", !q.dequeue("X", &served));
+        check("queue validates after draining", q.validate());
+
+        // Separate titles keep separate lines.
+        q.enqueue("A", 1);
+        q.enqueue("B", 1);
+        check("one patron may wait on two titles",
+              q.lengthOf("A") == 1 && q.lengthOf("B") == 1);
+        check("total counts across titles", q.totalWaiting() == 2);
+        check("cancelling one title leaves the other",
+              q.cancel("A", 1) && q.lengthOf("B") == 1);
+        check("queue validates across titles", q.validate());
+    }
+
+    // =======================================================================
+    section("14. Integration: reservations, fulfilment, and undo");
+    // =======================================================================
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5551000000001", "One Copy", "A", "T", 1));
+        lib.books().insert(Book("5551000000002", "Two Copies", "B", "T", 2));
+        lib.accounts().addUser(User(1, "Holder",  "h@x.edu", "p", Role::STUDENT));
+        lib.accounts().addUser(User(2, "Waiter",  "w@x.edu", "p", Role::STUDENT));
+        lib.accounts().addUser(User(3, "Waiter2", "v@x.edu", "p", Role::STUDENT));
+
+        // Reserving something on the shelf is refused: borrow it instead.
+        check("cannot reserve an available title",
+              lib.reserve(2, "5551000000001") == Status::COPY_IS_AVAILABLE);
+
+        lib.checkout(1, "5551000000001");
+        check("now the title is reservable",
+              lib.reserve(2, "5551000000001") == Status::OK);
+        check("reserving twice is refused",
+              lib.reserve(2, "5551000000001") == Status::ALREADY_RESERVED);
+        check("second patron joins behind the first",
+              lib.reserve(3, "5551000000001") == Status::OK);
+        check("hold line is two deep",
+              lib.reservations().lengthOf("5551000000001") == 2);
+
+        // The point of the queue: the return goes to whoever asked first.
+        int filledFor = 0;
+        check("return succeeds",
+              lib.returnBook(1, "5551000000001", &filledFor) == Status::OK);
+        check("returned copy went to the front of the line", filledFor == 2);
+        check("fulfilled patron now holds it",
+              lib.accounts().findUser(2)->activeLoanCount() == 1);
+        check("fulfilled patron left the line",
+              !lib.reservations().isWaiting("5551000000001", 2));
+        check("the next patron moved up",
+              lib.reservations().frontOf("5551000000001") == 3);
+        check("no copy sitting on the shelf after fulfilment",
+              lib.books().find("5551000000001")->copiesAvailable == 0);
+        check("invariants hold after fulfilment", lib.validateAll());
+
+        // Waiting on one title is unaffected by borrowing a different one.
+        lib.checkout(3, "5551000000002");
+        check("borrowing another title does not forfeit a hold",
+              lib.reservations().isWaiting("5551000000001", 3));
+
+        // But borrowing the title you were waiting on does clear the hold,
+        // or the next return would be handed to someone already holding a
+        // copy while a genuinely waiting patron stays in line behind them.
+        {
+            LibrarySystem c;
+            c.books().insert(Book("5554000000001", "Two Up", "A", "T", 2));
+            c.accounts().addUser(User(1, "Had It",  "a@x.edu", "p", Role::STUDENT));
+            c.accounts().addUser(User(2, "Wanted It","b@x.edu", "p", Role::STUDENT));
+
+            c.checkout(1, "5554000000001");
+            c.checkout(2, "5554000000001");       // both copies out
+            c.accounts().addUser(User(3, "Waiting", "c@x.edu", "p", Role::STUDENT));
+            check("title with no copies can be reserved",
+                  c.reserve(3, "5554000000001") == Status::OK);
+
+            c.returnBook(1, "5554000000001");     // fulfils patron 3
+            check("fulfilment cleared the hold",
+                  c.reservations().lengthOf("5554000000001") == 0);
+            check("fulfilled patron holds the copy",
+                  c.accounts().findUser(3)->activeLoanCount() == 1);
+            check("invariants hold after fulfilment by return", c.validateAll());
+        }
+
+        // Undo: the mis-scan case.
+        LibrarySystem u;
+        u.books().insert(Book("5552000000001", "Undo Me", "A", "T", 2));
+        u.accounts().addUser(User(1, "Staff", "s@x.edu", "p", Role::LIBRARIAN));
+
+        check("nothing to undo on a fresh account",
+              u.undoLast(1) == Status::NOTHING_TO_UNDO);
+
+        u.checkout(1, "5552000000001");
+        check("checkout recorded on the stack", u.activity().depth(1) == 1);
+
+        ActivityEntry undone;
+        check("undo reverses the checkout",
+              u.undoLast(1, &undone) == Status::OK);
+        check("undo reported the right action",
+              undone.type == ActivityType::CHECKOUT);
+        check("copy went back on the shelf",
+              u.books().find("5552000000001")->copiesAvailable == 2);
+        check("loan cleared from the account",
+              u.accounts().findUser(1)->activeLoanCount() == 0);
+        check("heap entry cleared", u.deadlines().empty());
+
+        // The inverse operation must not log itself, or undo would never
+        // terminate and the stack would grow on every reversal.
+        check("undo did not record itself", u.activity().depth(1) == 0);
+        check("stack is empty, so nothing is left to undo",
+              u.undoLast(1) == Status::NOTHING_TO_UNDO);
+        check("invariants hold after undo", u.validateAll());
+
+        // A failed inverse must leave the log describing what really
+        // happened, rather than quietly dropping the entry.
+        LibrarySystem f;
+        f.books().insert(Book("5553000000001", "Last Copy", "A", "T", 1));
+        f.accounts().addUser(User(1, "First",  "a@x.edu", "p", Role::STUDENT));
+        f.accounts().addUser(User(2, "Second", "b@x.edu", "p", Role::STUDENT));
+
+        f.checkout(1, "5553000000001");
+        f.returnBook(1, "5553000000001");
+        f.checkout(2, "5553000000001");          // someone else took it
+        check("the only copy is now held by someone else",
+              f.books().find("5553000000001")->copiesAvailable == 0);
+
+        size_t before = f.activity().depth(1);
+        check("undoing the return fails, the copy is gone",
+              f.undoLast(1) == Status::NO_COPIES_AVAILABLE);
+        check("failed undo put the entry back",
+              f.activity().depth(1) == before);
+        check("invariants hold after a failed undo", f.validateAll());
     }
 
     // -----------------------------------------------------------------------

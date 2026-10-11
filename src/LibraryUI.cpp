@@ -3,6 +3,7 @@
 // Smart Library Management System - CPSC 315
 // ============================================================================
 #include "LibraryUI.h"
+#include "DemoFixture.h"
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -80,73 +81,16 @@ bool LibraryUI::isStaff() const {
 }
 
 // ---------------------------------------------------------------------------
-// seedDemoData: a catalog, accounts, and a borrowing history.
+// seedDemoData: delegates to the shared fixture in DemoFixture.cpp.
 //
-// The history matters for the demo. Without prior loans the recommendation
-// engine has no co-borrow edges to walk and the overdue report is empty, so
-// two of the system's features would demo as blank screens. Seeding real
-// activity and then advancing the clock makes both produce output.
-//
-// Everything here is deterministic: the same seed produces the same screens
-// on every run, which is what makes the demo rehearsable.
+// Module 9 change. This function used to hold the seed data inline, which
+// put it out of reach of the test driver: slms_tests does not link the
+// interface layer. That is how the Module 8 dry run ended up with two empty
+// screens. The data now lives in a module both binaries link, and the test
+// driver asserts that it populates every dynamic screen.
 // ---------------------------------------------------------------------------
 void LibraryUI::seedDemoData() {
-    // --- catalog ---
-    lib.books().insert(Book("9780262134729", "Digital Apollo",
-                            "Mindell",  "History",   3));
-    lib.books().insert(Book("9780262529662", "The Apollo Guidance Computer",
-                            "O'Brien",  "History",   1));
-    lib.books().insert(Book("9780134685991", "Effective Modern C++",
-                            "Meyers",   "Computing", 2));
-    lib.books().insert(Book("9780201633610", "Design Patterns",
-                            "Gamma",    "Computing", 4));
-    lib.books().insert(Book("9780553380163", "A Brief History of Time",
-                            "Hawking",  "Science",   2));
-    lib.books().insert(Book("9780307887894", "The Lean Startup",
-                            "Ries",     "Business",  2));
-
-    // --- accounts ---
-    lib.accounts().addUser(User(1001, "Mike",      "mike@example.edu",   "hash", Role::STUDENT));
-    lib.accounts().addUser(User(1002, "Priya",     "priya@example.edu",  "hash", Role::STUDENT));
-    lib.accounts().addUser(User(1003, "Sam",       "sam@example.edu",    "hash", Role::STUDENT));
-    lib.accounts().addUser(User(2001, "A. Rivera", "rivera@example.edu", "hash", Role::LIBRARIAN));
-    lib.accounts().addUser(User(3001, "Admin",     "admin@example.edu",  "hash", Role::ADMINISTRATOR));
-
-    // --- borrowing history ---
-    // Priya and Sam both read the two Apollo titles, which builds the
-    // co-borrow edge the recommender walks for a user holding one of them.
-    lib.setToday(40);
-    lib.checkout(1002, "9780262134729");   // Priya: Digital Apollo
-    lib.checkout(1002, "9780553380163");   // Priya: A Brief History of Time
-    lib.returnBook(1002, "9780262134729");
-    lib.returnBook(1002, "9780553380163");
-
-    lib.setToday(55);
-    lib.checkout(1003, "9780262134729");   // Sam: Digital Apollo
-    lib.checkout(1003, "9780553380163");   // Sam: A Brief History of Time
-    lib.checkout(1003, "9780134685991");   // Sam: Effective Modern C++
-    lib.returnBook(1003, "9780262134729");
-    lib.returnBook(1003, "9780553380163");
-    lib.returnBook(1003, "9780134685991");
-
-    // --- loans still outstanding, deliberately left overdue ---
-    // Due on day 91 and 96; the clock below sits at 100, so the overdue
-    // report has two entries at 9 and 4 days late.
-    lib.setToday(70);
-    lib.checkout(1002, "9780201633610");   // Priya: Design Patterns, due day 91
-
-    lib.setToday(75);
-    lib.checkout(1003, "9780307887894");   // Sam: The Lean Startup, due day 96
-
-    // Single-copy title held by another patron. This is what lets the demo
-    // show a refusal with a specific reason rather than a generic error:
-    // the search screen reports "all copies out" and the borrow attempt
-    // returns NO_COPIES_AVAILABLE. Due day 111, so it is not overdue.
-    lib.setToday(90);
-    lib.checkout(1002, "9780262529662");   // Priya: Apollo Guidance Computer
-
-    // --- present day ---
-    lib.setToday(100);
+    buildDemoLibrary(lib);
 }
 
 // ---------------------------------------------------------------------------
@@ -209,37 +153,181 @@ void LibraryUI::mainMenu() {
                   << "   2. Borrow by ISBN\n"
                   << "   3. Return a book\n"
                   << "   4. My account\n"
-                  << "   5. Recommendations for me\n";
+                  << "   5. Recommendations for me\n"
+                  << "   6. Reserve a title that is out\n"
+                  << "   7. My recent activity\n";
 
-        int high = 6;
+        int high = 8;
         if (isStaff()) {
             std::cout << "\n   Staff functions\n"
-                      << "   6. Overdue report\n"
-                      << "   7. Inventory report\n"
-                      << "\n   8. Sign out\n";
-            high = 8;
+                      << "    8. Overdue report\n"
+                      << "    9. Inventory report\n"
+                      << "   10. Hold lists\n"
+                      << "\n   11. Sign out\n";
+            high = 11;
         } else {
-            std::cout << "\n   6. Sign out\n";
+            std::cout << "\n   8. Sign out\n";
         }
         std::cout << "\n";
 
         int choice = readChoice(1, high);
         if (choice == -1) return;
 
-        if (!isStaff() && choice == 6) return;      // student sign out
-        if (isStaff()  && choice == 8) return;      // staff sign out
+        if (!isStaff() && choice == 8)  return;     // student sign out
+        if (isStaff()  && choice == 11) return;     // staff sign out
 
         switch (choice) {
-            case 1: searchCatalog();   break;
-            case 2: borrowFlow();      break;
-            case 3: returnFlow();      break;
-            case 4: myAccount();       break;
-            case 5: recommendations(); break;
-            case 6: overdueReport();   break;   // staff only, guarded above
-            case 7: inventoryReport(); break;   // staff only
+            case 1:  searchCatalog();   break;
+            case 2:  borrowFlow();      break;
+            case 3:  returnFlow();      break;
+            case 4:  myAccount();       break;
+            case 5:  recommendations(); break;
+            case 6:  reserveFlow();     break;
+            case 7:  activityFlow();    break;
+            case 8:  overdueReport();   break;   // staff only, guarded above
+            case 9:  inventoryReport(); break;   // staff only
+            case 10: holdsReport();     break;   // staff only
             default: break;
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// reserveFlow: join the hold line for a title with no copies on the shelf.
+//
+// The screen only lists titles that are actually out, because reserving an
+// available book is refused by the logic layer and offering the option would
+// be inviting a rejection.
+// ---------------------------------------------------------------------------
+void LibraryUI::reserveFlow() {
+    header("RESERVE A TITLE");
+
+    std::vector<Book> all = lib.books().getAll();
+    std::vector<Book> out;
+    for (const Book& b : all) {
+        if (b.copiesAvailable == 0) out.push_back(b);
+    }
+
+    if (out.empty()) {
+        std::cout << "\n   Every title has a copy on the shelf.\n"
+                  << "   Nothing needs reserving right now.\n";
+        pause();
+        return;
+    }
+
+    std::sort(out.begin(), out.end(),
+              [](const Book& a, const Book& b) { return a.title < b.title; });
+
+    std::cout << " Titles with every copy checked out:\n\n";
+    for (size_t i = 0; i < out.size(); ++i) {
+        size_t waiting = lib.reservations().lengthOf(out[i].isbn);
+        std::cout << "   " << (i + 1) << ". " << std::left << std::setw(34)
+                  << out[i].title.substr(0, 33);
+        if (waiting == 0) {
+            std::cout << "no one waiting\n";
+        } else {
+            std::cout << waiting << " waiting\n";
+        }
+    }
+    std::cout << "   " << (out.size() + 1) << ". Cancel\n\n";
+
+    int choice = readChoice(1, static_cast<int>(out.size()) + 1);
+    if (choice == -1 || choice == static_cast<int>(out.size()) + 1) return;
+
+    const std::string isbn = out[choice - 1].isbn;
+    Status s = lib.reserve(currentUserId, isbn);
+
+    std::cout << "\n";
+    if (s == Status::OK) {
+        size_t place = lib.reservations().lengthOf(isbn);
+        std::cout << "   Reserved. You are number " << place
+                  << " in line.\n"
+                  << "   The next copy returned goes to the front of the line.\n";
+    } else {
+        std::cout << "   Not reserved. " << statusMessage(s) << "\n";
+    }
+    pause();
+}
+
+// ---------------------------------------------------------------------------
+// activityFlow: the account's activity stack, newest first, with an undo for
+// the most recent action.
+// ---------------------------------------------------------------------------
+void LibraryUI::activityFlow() {
+    header("MY RECENT ACTIVITY");
+
+    std::vector<ActivityEntry> recent = lib.activity().recent(currentUserId, 8);
+
+    if (recent.empty()) {
+        std::cout << "\n   Nothing recorded on this account yet.\n";
+        pause();
+        return;
+    }
+
+    std::cout << " Most recent first. Day numbers are system days.\n\n";
+    for (size_t i = 0; i < recent.size(); ++i) {
+        Book* b = lib.books().find(recent[i].isbn);
+        std::cout << "   " << (i + 1) << ". " << std::left << std::setw(22)
+                  << activityName(recent[i].type) << std::setw(32)
+                  << (b ? b->title.substr(0, 31) : recent[i].isbn)
+                  << "day " << recent[i].day << "\n";
+    }
+
+    std::cout << "\n   Only the most recent action can be undone.\n"
+              << "   1. Undo \"" << activityName(recent[0].type) << "\"\n"
+              << "   2. Back\n\n";
+
+    int choice = readChoice(1, 2);
+    if (choice != 1) return;
+
+    ActivityEntry undone;
+    Status s = lib.undoLast(currentUserId, &undone);
+
+    std::cout << "\n";
+    if (s == Status::OK) {
+        Book* b = lib.books().find(undone.isbn);
+        std::cout << "   Undone: " << activityName(undone.type) << " "
+                  << (b ? b->title : undone.isbn) << "\n";
+    } else {
+        std::cout << "   Not undone. " << statusMessage(s) << "\n";
+    }
+    pause();
+}
+
+// ---------------------------------------------------------------------------
+// holdsReport: staff view of every title with a waiting list.
+// ---------------------------------------------------------------------------
+void LibraryUI::holdsReport() {
+    header("HOLD LISTS");
+
+    std::vector<std::string> titles = lib.reservations().titlesWithHolds();
+
+    if (titles.empty()) {
+        std::cout << "\n   No titles have anyone waiting.\n";
+        pause();
+        return;
+    }
+
+    std::sort(titles.begin(), titles.end());
+
+    std::cout << " Waiting lists, in the order patrons will be served:\n\n";
+    for (const std::string& isbn : titles) {
+        Book* b = lib.books().find(isbn);
+        std::cout << "   " << (b ? b->title : isbn) << "\n";
+
+        std::vector<int> line = lib.reservations().waitingOn(isbn);
+        for (size_t i = 0; i < line.size(); ++i) {
+            User* u = lib.accounts().findUser(line[i]);
+            std::cout << "      " << (i + 1) << ". "
+                      << (u ? u->name : std::string("account "))
+                      << " (" << line[i] << ")\n";
+        }
+        std::cout << "\n";
+    }
+
+    std::cout << " Total patrons waiting: "
+              << lib.reservations().totalWaiting() << "\n";
+    pause();
 }
 
 // ---------------------------------------------------------------------------

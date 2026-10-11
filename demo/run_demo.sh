@@ -18,7 +18,8 @@ if [ ! -x "$BIN" ]; then
     echo "Build first:"
     echo "  g++ -std=c++17 -Wall -Wextra -o slms_app src/app.cpp src/LibraryUI.cpp \\"
     echo "      src/BookInventory.cpp src/UserAccounts.cpp src/DueDateHeap.cpp \\"
-    echo "      src/Recommender.cpp src/LibrarySystem.cpp"
+    echo "      src/Recommender.cpp src/LibrarySystem.cpp src/DemoFixture.cpp \\"
+    echo "      src/ActivityLog.cpp src/ReservationQueue.cpp"
     exit 1
 fi
 
