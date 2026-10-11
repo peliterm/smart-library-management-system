@@ -32,7 +32,7 @@ test: slms_tests
 	./slms_tests
 
 demo: slms_app
-	./demo/run_demo.sh
+	sh demo/run_demo.sh
 
 # Everything the submission claims, checked in one command.
 #
@@ -53,8 +53,8 @@ verify: slms_tests slms_app
 	    UBSAN_OPTIONS=halt_on_error=1 ./.verify/slms_san > .verify/san.log
 	@echo "sanitizers: clean"
 	@echo "--- demo determinism ---"
-	./demo/run_demo.sh --fast > .verify/demo1.txt 2>&1
-	./demo/run_demo.sh --fast > .verify/demo2.txt 2>&1
+	sh demo/run_demo.sh --fast > .verify/demo1.txt 2>&1
+	sh demo/run_demo.sh --fast > .verify/demo2.txt 2>&1
 	@cmp -s .verify/demo1.txt .verify/demo2.txt || { \
 	    echo "FAIL: consecutive demo runs differ"; exit 1; }
 	@cmp -s .verify/demo1.txt demo/recorded_run.txt || { \

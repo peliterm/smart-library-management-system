@@ -2,168 +2,12 @@
 SMART LIBRARY MANAGEMENT SYSTEM
 ===============================
 
-CPSC 315 Data Structures | Michael Pelitera | Embry-Riddle Aeronautical
-University Worldwide
+CPSC 315 | Michael Pelitera | Final project
 
 A C++17 console application for managing books, accounts, loans,
 reservations, recommendations, activity and undo, password authentication,
 and catalog compression. All application data is held in memory and is
 lost on exit.
-
-Built across nine modules as the course project. Every data structure is
-written by hand rather than taken from the standard library, because
-implementing them was the point.
-
-304 of 304 checks pass. AddressSanitizer and UndefinedBehaviorSanitizer
-report no leaks and no undefined behavior. Three consecutive demo runs are
-byte-identical. One command checks all of it:
-
-    make verify
-
-WATCH IT RUN
-------------
-
-Final_Project_Presentation_SLMS.mp4 is an 8:16 narrated walkthrough. The
-middle section, from 1:42, is a real recorded session rather than a mock-
-up: search and borrow, a refusal that names its reason, a reservation,
-recommendations, undo, the staff reports, and compression.
-
-HOW THIS PROJECT WAS BUILT, MODULE BY MODULE
---------------------------------------------
-
-Each module is a tagged commit, so any stage can be checked out and built
-on its own. git log reads bottom to top as the course ran.
-
-  module-4 (../../tree/module-4)
-      Module: 3 and 4
-      What landed: Hash table on ISBN with separate chaining; sorted
-      linked list plus index for accounts
-      Files: 11
-
-  module-5 (../../tree/module-5)
-      Module: 5
-      What landed: Indexed min-heap for due dates; co-borrowing graph
-      and score BST
-      Files: 15
-
-  module-6 (../../tree/module-6)
-      Module: 6
-      What landed: Unit, integration and load tests. Two defects found
-      and fixed; 60 to 72 checks
-      Files: 15
-
-  module-7 (../../tree/module-7)
-      Module: 7
-      What landed: Console interface, user guide, technical report.
-      Four interface defects found by writing the manual
-      Files: 20
-
-  module-8 (../../tree/module-8)
-      Module: 8
-      What landed: Presentation and scripted demo. Dry run exposed two
-      screens demoing blank
-      Files: 25
-
-  module-9 (../../tree/module-9)
-      Module: 9
-      What landed: Activity log, reservation queue, word index, date
-      sort, Huffman, PBKDF2, role checks. 304 checks
-      Files: 34
-
-  main
-      Module: final
-      What landed: Consolidated documentation, narrated video,
-      verification record
-      Files: 39
-
-A note on the history: Git was not used during development, which the
-project plan records as a mistake. This repository was assembled at the
-end from the per-module archives submitted to each discussion board, so
-the commits are accurate snapshots of what each module delivered, but they
-carry the date the repository was created rather than the date the work
-was done.
-
-WHERE THE REQUIRED FEATURES LIVE
---------------------------------
-
-  Hash table lookup by ISBN
-      Implementation: FNV-1a, separate chaining, load factor capped at
-      0.75
-      Source: src/BookInventory.*
-
-  Lookup by title or author
-      Implementation: Secondary word index, token to ISBN list
-      Source: src/BookInventory.*
-
-  Sorting by title, author, year
-      Implementation: Three sorted views over the catalog
-      Source: src/BookInventory.*
-
-  Linked list for accounts
-      Implementation: Sorted doubly linked list plus a user-ID index
-      Source: src/UserAccounts.*
-
-  Stack for activity logs
-      Implementation: Linked stack per account, drives undo
-      Source: src/ActivityLog.*
-
-  Queue for reservations
-      Implementation: Linked FIFO per title with a tail pointer
-      Source: src/ReservationQueue.*
-
-  Heap for return deadlines
-      Implementation: Min-heap with a loan-ID to index map
-      Source: src/DueDateHeap.*
-
-  Tree for recommendations
-      Implementation: Score BST, reverse in-order traversal
-      Source: src/Recommender.*
-
-  Graph for recommendations
-      Implementation: Co-borrowing adjacency list, 50-neighbour cap
-      Source: src/Recommender.*
-
-  Huffman compression
-      Implementation: Tree build, deterministic tie-breaking, bit
-      packing
-      Source: src/Huffman.*
-
-  Password hashing
-      Implementation: PBKDF2-HMAC-SHA256, 16-byte salt, 600,000
-      iterations
-      Source: src/PasswordHash.*, src/Sha256.*
-
-  User interface
-      Implementation: Role-gated console menus, named refusal reasons
-      Source: src/LibraryUI.*
-
-SHA-256, HMAC-SHA256 and PBKDF2 are implemented from the specifications
-and checked against published test vectors. See TECHNICAL_REPORT.md
-section 9, and section 16 of the test driver in src/main.cpp.
-
-REPOSITORY LAYOUT
------------------
-
-    src/                 28 files: structures, logic layer, interface, test driver
-    demo/                scripted demo: runner, keystrokes, recorded output
-    Makefile             build, test, demo, verify
-    TECHNICAL_REPORT.md  architecture, costs, defects, privacy, limitations,
-                         project plan, feedback, requirements coverage
-    VERIFICATION.txt     captured test output and how to check it without a compiler
-    MP_CPSC315_SystemDesign.pdf    final design, then the original Module 2 design
-    MP_CPSC315_Presentation.pptx   eight slides
-    Final_Project_Presentation_SLMS.mp4   narrated walkthrough
-    README.txt           this file as plain text
-
-WHAT IT DOES NOT DO
--------------------
-
-No persistence, single user, no fines or renewals, and no lockout or
-session timeout on sign-in. These are named with what closing each would
-take in TECHNICAL_REPORT.md section 11, rather than left for a reader to
-discover.
-
----
 
 CONTENTS
 --------
@@ -260,14 +104,17 @@ locally.
 DEMONSTRATION
 -------------
 
-    ./demo/run_demo.sh          # paced demonstration
-    ./demo/run_demo.sh --fast   # replay without delays
+    sh demo/run_demo.sh          # paced demonstration
+    sh demo/run_demo.sh --fast   # replay without delays
 
 The ten scenes show search and borrowing, a refusal, reservations,
 recommendations, account loans, activity and undo, overdue items,
 inventory, hold lists, and compression. The same session, narrated, is in
 Final_Project_Presentation_SLMS.mp4 from 1:42. demo/recorded_run.txt is
 both the fallback transcript and the expected output used by make verify.
+
+Invoked through sh because unzipping on Windows, or cloning onto a drive
+that does not carry Unix permissions, drops the executable bit.
 
 USER GUIDE
 ----------
