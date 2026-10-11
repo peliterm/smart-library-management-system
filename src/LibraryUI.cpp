@@ -80,11 +80,18 @@ bool LibraryUI::isStaff() const {
 }
 
 // ---------------------------------------------------------------------------
-// seedDemoData: a small catalog so the interface is usable immediately.
+// seedDemoData: a catalog, accounts, and a borrowing history.
+//
+// The history matters for the demo. Without prior loans the recommendation
+// engine has no co-borrow edges to walk and the overdue report is empty, so
+// two of the system's features would demo as blank screens. Seeding real
+// activity and then advancing the clock makes both produce output.
+//
+// Everything here is deterministic: the same seed produces the same screens
+// on every run, which is what makes the demo rehearsable.
 // ---------------------------------------------------------------------------
 void LibraryUI::seedDemoData() {
-    lib.setToday(100);
-
+    // --- catalog ---
     lib.books().insert(Book("9780262134729", "Digital Apollo",
                             "Mindell",  "History",   3));
     lib.books().insert(Book("9780262529662", "The Apollo Guidance Computer",
@@ -95,11 +102,51 @@ void LibraryUI::seedDemoData() {
                             "Gamma",    "Computing", 4));
     lib.books().insert(Book("9780553380163", "A Brief History of Time",
                             "Hawking",  "Science",   2));
+    lib.books().insert(Book("9780307887894", "The Lean Startup",
+                            "Ries",     "Business",  2));
 
-    lib.accounts().addUser(User(1001, "Mike",    "mike@example.edu",  "hash", Role::STUDENT));
-    lib.accounts().addUser(User(1002, "Priya",   "priya@example.edu", "hash", Role::STUDENT));
+    // --- accounts ---
+    lib.accounts().addUser(User(1001, "Mike",      "mike@example.edu",   "hash", Role::STUDENT));
+    lib.accounts().addUser(User(1002, "Priya",     "priya@example.edu",  "hash", Role::STUDENT));
+    lib.accounts().addUser(User(1003, "Sam",       "sam@example.edu",    "hash", Role::STUDENT));
     lib.accounts().addUser(User(2001, "A. Rivera", "rivera@example.edu", "hash", Role::LIBRARIAN));
-    lib.accounts().addUser(User(3001, "Admin",   "admin@example.edu", "hash", Role::ADMINISTRATOR));
+    lib.accounts().addUser(User(3001, "Admin",     "admin@example.edu",  "hash", Role::ADMINISTRATOR));
+
+    // --- borrowing history ---
+    // Priya and Sam both read the two Apollo titles, which builds the
+    // co-borrow edge the recommender walks for a user holding one of them.
+    lib.setToday(40);
+    lib.checkout(1002, "9780262134729");   // Priya: Digital Apollo
+    lib.checkout(1002, "9780553380163");   // Priya: A Brief History of Time
+    lib.returnBook(1002, "9780262134729");
+    lib.returnBook(1002, "9780553380163");
+
+    lib.setToday(55);
+    lib.checkout(1003, "9780262134729");   // Sam: Digital Apollo
+    lib.checkout(1003, "9780553380163");   // Sam: A Brief History of Time
+    lib.checkout(1003, "9780134685991");   // Sam: Effective Modern C++
+    lib.returnBook(1003, "9780262134729");
+    lib.returnBook(1003, "9780553380163");
+    lib.returnBook(1003, "9780134685991");
+
+    // --- loans still outstanding, deliberately left overdue ---
+    // Due on day 91 and 96; the clock below sits at 100, so the overdue
+    // report has two entries at 9 and 4 days late.
+    lib.setToday(70);
+    lib.checkout(1002, "9780201633610");   // Priya: Design Patterns, due day 91
+
+    lib.setToday(75);
+    lib.checkout(1003, "9780307887894");   // Sam: The Lean Startup, due day 96
+
+    // Single-copy title held by another patron. This is what lets the demo
+    // show a refusal with a specific reason rather than a generic error:
+    // the search screen reports "all copies out" and the borrow attempt
+    // returns NO_COPIES_AVAILABLE. Due day 111, so it is not overdue.
+    lib.setToday(90);
+    lib.checkout(1002, "9780262529662");   // Priya: Apollo Guidance Computer
+
+    // --- present day ---
+    lib.setToday(100);
 }
 
 // ---------------------------------------------------------------------------

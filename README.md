@@ -1,14 +1,30 @@
-# Smart Library Management System — Module 7 Deliverable
+# Smart Library Management System — Module 8 Deliverable
 
 CPSC 315 | Michael Pelitera
-Complete documentation set plus interface refinements.
+Finalized presentation plus a scripted, demo-ready build.
 
-## Documents
+## Deliverables
 
-| File | Audience |
-|------|----------|
+| File | Purpose |
+|------|---------|
+| `MP_CPSC315_Module8_Presentation.pptx` | Eight-slide presentation |
+| `demo/DEMO_SCRIPT.md` | Scene-by-scene narration, pre-flight checklist, failure plan |
+| `demo/run_demo.sh` | Replays the demo deterministically |
+| `demo/demo_input.txt` | The fixed keystroke sequence |
+| `demo/recorded_run.txt` | Captured run, used as the live fallback |
 | `USER_GUIDE.md` | End users — patrons and library staff |
 | `TECHNICAL_REPORT.md` | Developers — architecture, structures, costs, limitations |
+
+## Running the demo
+
+```
+./demo/run_demo.sh           # readable pace, about 3 minutes
+./demo/run_demo.sh --fast    # no delay, for verification
+```
+
+Six scenes: search and borrow, a refusal with a named reason,
+recommendations, the account view, the overdue report, and the inventory
+report. Three consecutive runs produce byte-identical output.
 
 ## Build
 
@@ -27,6 +43,19 @@ g++ -std=c++17 -Wall -Wextra -o slms_tests \
 
 `./slms_app` runs the interface. `./slms_tests` runs 72 checks and should end
 with `72 of 72 checks passed`.
+
+## Module 8 changes
+
+**Demo seed data.** The previous seed had a catalog and accounts but no
+borrowing history, so the recommendation engine had no co-borrow edges to
+walk and the overdue report was empty. Two of the system's features demoed
+as blank screens. The seed now builds real activity and advances the clock,
+so recommendations return scored results and the overdue report shows two
+items at 9 and 4 days late.
+
+**Scripted demo.** Keystrokes live in a file rather than in the presenter's
+hands. This removes typing mistakes as a failure mode and makes the demo
+rehearsable against the exact output it will produce.
 
 ## Module 7 changes
 

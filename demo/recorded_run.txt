@@ -1,0 +1,222 @@
+
+--------------------------------------------------------
+ SMART LIBRARY MANAGEMENT SYSTEM
+--------------------------------------------------------
+
+--------------------------------------------------------
+ SIGN IN                             
+--------------------------------------------------------
+ Demo accounts:
+   1001  Mike       (Student)
+   1002  Priya      (Student)
+   2001  A. Rivera  (Librarian)
+   3001  Admin      (Administrator)
+
+ Enter 0 to exit.
+
+Account ID: 
+--------------------------------------------------------
+ MAIN MENU                               Mike / Student
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+
+   6. Sign out
+
+Select [1-6]: 
+--------------------------------------------------------
+ SEARCH CATALOG                          Mike / Student
+--------------------------------------------------------
+ Title or author (blank lists everything): 
+    1. Digital Apollo                  Mindell     3 available
+    2. The Apollo Guidance Computer    O'Brien     all copies out
+
+   2 titles found.
+   3. Back to menu
+
+Select [1-3]: 
+   Checked out: Digital Apollo
+   Due in 21 days (day 121).
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                               Mike / Student
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+
+   6. Sign out
+
+Select [1-6]: 
+--------------------------------------------------------
+ SEARCH CATALOG                          Mike / Student
+--------------------------------------------------------
+ Title or author (blank lists everything): 
+    1. Digital Apollo                  Mindell     2 available
+    2. The Apollo Guidance Computer    O'Brien     all copies out
+
+   2 titles found.
+   3. Back to menu
+
+Select [1-3]: 
+   Not checked out. All copies are currently checked out.
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                               Mike / Student
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+
+   6. Sign out
+
+Select [1-6]: 
+--------------------------------------------------------
+ RECOMMENDED FOR YOU                     Mike / Student
+--------------------------------------------------------
+
+   A Brief History of Time             match score 2
+   Effective Modern C++                match score 1
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                               Mike / Student
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+
+   6. Sign out
+
+Select [1-6]: 
+--------------------------------------------------------
+ MY ACCOUNT                              Mike / Student
+--------------------------------------------------------
+ Account 1001  Mike  (Student)
+ Active loans: 1 of 5
+
+   Digital Apollo                      9780262134729
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                               Mike / Student
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+
+   6. Sign out
+
+Select [1-6]: 
+--------------------------------------------------------
+ SIGN IN                             
+--------------------------------------------------------
+ Demo accounts:
+   1001  Mike       (Student)
+   1002  Priya      (Student)
+   2001  A. Rivera  (Librarian)
+   3001  Admin      (Administrator)
+
+ Enter 0 to exit.
+
+Account ID: 
+--------------------------------------------------------
+ MAIN MENU                           A. Rivera / Librarian
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+
+   Staff functions
+   6. Overdue report
+   7. Inventory report
+
+   8. Sign out
+
+Select [1-8]: 
+--------------------------------------------------------
+ OVERDUE REPORT                      A. Rivera / Librarian
+--------------------------------------------------------
+ As of day 100
+
+   Design Patterns               Priya         9 days late
+   The Lean Startup              Sam           4 days late
+
+   2 overdue items.
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                           A. Rivera / Librarian
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+
+   Staff functions
+   6. Overdue report
+   7. Inventory report
+
+   8. Sign out
+
+Select [1-8]: 
+--------------------------------------------------------
+ INVENTORY REPORT                    A. Rivera / Librarian
+--------------------------------------------------------
+
+   Gamma         Design Patterns                 3 of 4
+   Hawking       A Brief History of Time         2 of 2
+   Meyers        Effective Modern C++            2 of 2
+   Mindell       Digital Apollo                  2 of 3
+   O'Brien       The Apollo Guidance Computer    0 of 1
+   Ries          The Lean Startup                1 of 2
+
+   6 titles, 14 copies, 4 currently out.
+   Active loans tracked: 4
+
+Press Enter to continue.
+--------------------------------------------------------
+ MAIN MENU                           A. Rivera / Librarian
+--------------------------------------------------------
+   1. Search and borrow
+   2. Borrow by ISBN
+   3. Return a book
+   4. My account
+   5. Recommendations for me
+
+   Staff functions
+   6. Overdue report
+   7. Inventory report
+
+   8. Sign out
+
+Select [1-8]: 
+--------------------------------------------------------
+ SIGN IN                             
+--------------------------------------------------------
+ Demo accounts:
+   1001  Mike       (Student)
+   1002  Priya      (Student)
+   2001  A. Rivera  (Librarian)
+   3001  Admin      (Administrator)
+
+ Enter 0 to exit.
+
+Account ID: 
+Session ended.
