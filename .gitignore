@@ -1,0 +1,6 @@
+# build products
+slms_app
+slms_tests
+.verify/
+*.o
+*.out
