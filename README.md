@@ -1,99 +1,68 @@
-# Smart Library Management System - Module 6 Deliverable
+# Smart Library Management System — Module 7 Deliverable
 
 CPSC 315 | Michael Pelitera
-Stable build. All modules implemented, unit and integration tested, with two
-defects found and fixed during Module 6 testing.
+Complete documentation set plus interface refinements.
 
-## Build and run
+## Documents
+
+| File | Audience |
+|------|----------|
+| `USER_GUIDE.md` | End users — patrons and library staff |
+| `TECHNICAL_REPORT.md` | Developers — architecture, structures, costs, limitations |
+
+## Build
 
 ```
-g++ -std=c++17 -Wall -Wextra -o slms src/*.cpp
-./slms
+# interactive application
+g++ -std=c++17 -Wall -Wextra -o slms_app \
+    src/app.cpp src/LibraryUI.cpp src/BookInventory.cpp \
+    src/UserAccounts.cpp src/DueDateHeap.cpp \
+    src/Recommender.cpp src/LibrarySystem.cpp
+
+# test driver
+g++ -std=c++17 -Wall -Wextra -o slms_tests \
+    src/main.cpp src/BookInventory.cpp src/UserAccounts.cpp \
+    src/DueDateHeap.cpp src/Recommender.cpp src/LibrarySystem.cpp
 ```
 
-The executable runs a test driver covering all modules. Expected output ends
+`./slms_app` runs the interface. `./slms_tests` runs 72 checks and should end
 with `72 of 72 checks passed`.
 
-## Files
+## Module 7 changes
 
-| File | Contents |
-|------|----------|
-| `src/Book.h` | Book record. One record per ISBN, with copy counts. |
-| `src/BookInventory.h/.cpp` | Hash table keyed on ISBN, separate chaining, FNV-1a hash, resize at 0.75 load factor. |
-| `src/User.h` | Account record and Role enumeration. |
-| `src/UserAccounts.h/.cpp` | Sorted doubly linked list by user ID, paired with a hash index mapping ID to node. |
-| `src/DueDateHeap.h/.cpp` | Binary min-heap on due date with a loan ID to array index map, making arbitrary removal O(log n) instead of O(n). |
-| `src/Recommender.h/.cpp` | Co-borrowing graph (adjacency list, 50-neighbor cap) plus a score BST read by reverse in-order traversal. |
-| `src/LibrarySystem.h/.cpp` | Integration layer. Checkout, return, overdue notices, recommendations, with validation before any write. |
-| `src/main.cpp` | Test driver. 72 checks across ten sections, including a regression suite for the defects found in Module 6. |
+**New: console interface (`LibraryUI`).** Earlier modules had a test driver
+but no interface a user could operate. The UI layer is separate from
+`LibrarySystem` so the logic stays testable without simulating keystrokes.
 
-## Design decisions
+**Refinement: search and borrow in one step.** The first version displayed
+search results, then required the user to return to the menu and type a
+13-digit ISBN by hand. Writing that step into the user guide is what exposed
+it — an instruction reading "type the number exactly as shown above"
+describes work the program should be doing. Results are now numbered and
+borrowable directly. Manual ISBN entry remains for staff working from paper.
 
-**Hash function.** FNV-1a rather than a character sum. ISBN-13 values share
-long prefixes, so an accumulating hash clusters records into a narrow band of
-buckets. Test section 2 loads 5,000 ISBNs that all share a `9780262` prefix
-and confirms the longest chain stays at 5.
+**Refinement: menus grouped by frequency and role.** Patron operations appear
+first; staff functions sit below a separator and are hidden from roles that
+cannot use them, so no one selects an option only to be refused.
 
-**Two structures for accounts.** The linked list keeps accounts in sorted ID
-order and allows insertion and removal without shifting records. The hash
-index maps user ID to node pointer, which turns lookup from O(n) traversal
-into O(1) average and makes deletion O(1) since no search is needed to find
-the node. The risk is the two disagreeing, so `UserAccounts::validate()`
-verifies ordering, back pointers, counts, and index agreement.
+**Refinement: invalid input re-prompts.** A stray keystroke used to be able to
+end a session. Input is now validated in one place and re-prompted with the
+expected range.
 
-**Insertion cost.** User IDs are assigned in increasing order, so new accounts
-almost always append at the tail in O(1). The interior insert path exists for
-out-of-order IDs and is O(n) worst case.
+**Refinement: empty states explain themselves.** An empty recommendation list
+says why it is empty rather than printing nothing.
 
-**Integration.** The two modules never touch each other's data. Every
-cross-module operation runs through `LibrarySystem`, validates completely
-before the first write, and returns a named `Status` rather than a bare
-false so the interface can report which rule stopped the operation.
+## Known gaps
 
-**Deadline management.** A plain heap gives O(log n) push and pop-min, which
-covers the overdue report, but it cannot locate an arbitrary element without
-an O(n) scan. Books get returned early constantly, so the heap keeps a hash
-map from loan ID to array index, updated inside every sift. Removal becomes
-locate in O(1), swap with the last element, sift: O(log n). Test section 6
-loads 2,000 loans, removes every third by ID, and re-validates.
+`TECHNICAL_REPORT.md` section 8 now separates two kinds of limitation:
+constraints of the current design (no persistence, single-threaded, O(n)
+validity sweeps) and features that were specified in Modules 1 and 2 but
+never built (holds, fines, renewals, activity log stack, reservation queue,
+Huffman coding). The second list exists so the gap between the design
+documents and the implementation is visible rather than implied.
 
-**Recommendations.** Co-borrowing is stored as an adjacency list rather than
-a matrix, since most book pairs share no borrower and a matrix would allocate
-n^2 slots for mostly zeros. Each title keeps its 50 heaviest edges, which
-bounds the two-hop walk no matter how popular a book becomes. Candidates are
-inserted into a BST keyed on (score, ISBN); the ISBN breaks ties so equal
-scores get a deterministic position. Reverse in-order traversal reads the
-tree highest score first and stops once the requested count is reached.
-
-**Validation.** Each module owns an invariant check, following the BST
-validity checker pattern from Lab 7.15. `UserAccounts::validate()` covers
-list ordering and index agreement, `DueDateHeap::validate()` covers the heap
-property and the index map, and `Recommender::validateTree()` checks BST keys
-against inherited ancestor bounds rather than only the immediate parent.
-`LibrarySystem::validateAll()` runs all three.
-
-## Defects found and fixed in Module 6
-
-**1. Orphaned heap entry on a duplicate-title loan.** The loan lookup stored a
-single loan ID per (user, ISBN) pair, which assumed a user could never hold
-two copies of the same title. Nothing in the system enforced that assumption.
-A second checkout overwrote the first loan ID, so the first heap entry could
-never be removed and generated a phantom overdue notice for a book that had
-already been returned. Fixed by storing a list of outstanding loan IDs per
-pair and clearing them oldest-first. Regression test: section 10.
-
-**2. Asymmetric edges after neighbor trimming.** The 50-neighbor cap removed
-dropped edges from one endpoint only. The co-borrowing graph is undirected,
-so every trimmed neighbor still held a return edge to a vertex that had
-forgotten it, leaving the cap unable to bound the walk from that direction.
-Fixed by removing both halves of a dropped edge. Regression test: section 10.
-
-Both defects passed the existing 60-test suite. Neither was found by testing
-components in isolation; both required exercising a full checkout and return
-cycle with inputs the original tests never produced.
-
-## Verification
+## Status
 
 - Compiles clean under `-Wall -Wextra -Wpedantic`
-- AddressSanitizer and UndefinedBehaviorSanitizer report no leaks or UB
-- 72 of 72 checks pass, covering unit, integration, stress, and regression cases
+- ASan and UBSan report no leaks or undefined behavior
+- 72 of 72 checks pass
