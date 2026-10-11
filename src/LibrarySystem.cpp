@@ -64,7 +64,7 @@ Status LibrarySystem::checkout(int userId, const std::string& isbn,
     book->copiesAvailable -= 1;
     user->borrowedIsbns.push_back(isbn);
     dueDates.push(LoanEntry(loanId, userId, isbn, dueDay));   // O(log n)
-    loanIdFor[loanKey(userId, isbn)] = loanId;
+    loanIdsFor[loanKey(userId, isbn)].push_back(loanId);      // append, not overwrite
 
     if (outLoanId != nullptr) *outLoanId = loanId;
     return Status::OK;
@@ -98,10 +98,15 @@ Status LibrarySystem::returnBook(int userId, const std::string& isbn) {
         book->copiesAvailable += 1;
     }
 
-    auto loanIt = loanIdFor.find(loanKey(userId, isbn));
-    if (loanIt != loanIdFor.end()) {
-        dueDates.removeLoan(loanIt->second);     // O(log n) via index map
-        loanIdFor.erase(loanIt);
+    // Return the oldest outstanding copy first, so the loan that came due
+    // earliest is the one cleared.
+    auto loanIt = loanIdsFor.find(loanKey(userId, isbn));
+    if (loanIt != loanIdsFor.end() && !loanIt->second.empty()) {
+        dueDates.removeLoan(loanIt->second.front());   // O(log n) via index map
+        loanIt->second.erase(loanIt->second.begin());
+        if (loanIt->second.empty()) {
+            loanIdsFor.erase(loanIt);                  // no stale empty entries
+        }
     }
     return Status::OK;
 }

@@ -31,6 +31,13 @@ void Recommender::recordCoBorrow(const std::string& isbnA,
 // trimNeighbors: keeps only the heaviest MAX_NEIGHBORS edges. Without this,
 // a popular title accumulates an edge to nearly every other book and the
 // two-hop walk stops being bounded.
+//
+// BUG FIX (Module 6): the original version deleted the dropped edges from
+// this vertex only. The graph is undirected, so every neighbor still held a
+// return edge pointing back at a vertex that had forgotten it. The walk then
+// found candidates through edges that no longer existed in both directions,
+// and the cap stopped bounding anything. Dropped edges are now removed from
+// both endpoints.
 // ---------------------------------------------------------------------------
 void Recommender::trimNeighbors(const std::string& isbn) {
     auto& neighbors = adjacency[isbn];
@@ -46,9 +53,23 @@ void Recommender::trimNeighbors(const std::string& isbn) {
             return a.first < b.first;
         });
 
+    // Collect the losers before clearing, so their return edges can be cut.
+    std::vector<std::string> dropped;
+    for (size_t i = MAX_NEIGHBORS; i < ranked.size(); ++i) {
+        dropped.push_back(ranked[i].first);
+    }
+
     neighbors.clear();
     for (size_t i = 0; i < MAX_NEIGHBORS; ++i) {
         neighbors[ranked[i].first] = ranked[i].second;
+    }
+
+    // Remove the reciprocal half of each dropped edge.
+    for (const std::string& other : dropped) {
+        auto it = adjacency.find(other);
+        if (it != adjacency.end()) {
+            it->second.erase(isbn);
+        }
     }
 }
 

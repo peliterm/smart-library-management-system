@@ -363,6 +363,79 @@ int main() {
     }
     check("titles stay ordered within an author group (stability)", stable);
 
+
+    // -----------------------------------------------------------------------
+    section("10. Regression: bugs found during Module 6 testing");
+    // -----------------------------------------------------------------------
+    // BUG 1 - Orphaned heap entry on a duplicate-title loan.
+    // Cause: the loan lookup stored one loan ID per (user, ISBN) pair, which
+    // assumed a user could never hold two copies of the same title. Nothing
+    // enforced that. The second checkout overwrote the first loan ID, so the
+    // first heap entry could never be removed and generated a phantom overdue
+    // notice for a book that had already come back.
+    {
+        LibrarySystem lib;
+        lib.setToday(0);
+        lib.books().insert(Book("5550000000001", "Two Copies", "A", "T", 3));
+        lib.accounts().addUser(User(1, "Reader", "r@x.edu", "h", Role::STUDENT));
+
+        int first = 0, second = 0;
+        lib.checkout(1, "5550000000001", &first);
+        lib.setToday(5);
+        lib.checkout(1, "5550000000001", &second);
+        check("two copies of one title produce distinct loans", first != second);
+        check("both loans tracked in the heap", lib.deadlines().size() == 2);
+
+        lib.returnBook(1, "5550000000001");
+        check("first return clears exactly one heap entry",
+              lib.deadlines().size() == 1);
+        lib.returnBook(1, "5550000000001");
+        check("second return empties the heap", lib.deadlines().empty());
+
+        lib.setToday(500);
+        check("no phantom overdue notice after both returns",
+              lib.overdueNotices().empty());
+        check("copy count fully restored",
+              lib.books().find("5550000000001")->copiesAvailable == 3);
+        check("invariants hold after duplicate-title cycle", lib.validateAll());
+    }
+
+    // BUG 2 - Asymmetric edges after neighbor trimming.
+    // Cause: trimming removed dropped edges from one endpoint only. Because
+    // the co-borrowing graph is undirected, every trimmed neighbor still held
+    // a return edge to a vertex that had forgotten it, so the 50-neighbor cap
+    // stopped bounding the walk in one direction.
+    {
+        Recommender rec;
+        for (int i = 0; i < 200; ++i) {
+            rec.recordCoBorrow("HUB", "N" + std::to_string(i));
+        }
+        check("hub capped at 50 neighbors",
+              rec.edgeCountFor("HUB") == Recommender::MAX_NEIGHBORS);
+
+        size_t stillLinked = 0;
+        for (int i = 0; i < 200; ++i) {
+            if (rec.edgeCountFor("N" + std::to_string(i)) > 0) ++stillLinked;
+        }
+        check("trimmed neighbors dropped their return edges",
+              stillLinked == Recommender::MAX_NEIGHBORS);
+        check("tree valid after trimming", rec.validateTree());
+    }
+
+    // BUG 3 (near miss) - a return by the wrong account must not restore a
+    // copy. This one already behaved correctly; the test locks it in.
+    {
+        LibrarySystem lib;
+        lib.books().insert(Book("5550000000002", "Single", "A", "T", 1));
+        lib.accounts().addUser(User(1, "Owner",     "o@x.edu", "h", Role::STUDENT));
+        lib.accounts().addUser(User(2, "Not Owner", "n@x.edu", "h", Role::STUDENT));
+        lib.checkout(1, "5550000000002");
+        check("wrong account cannot return the book",
+              lib.returnBook(2, "5550000000002") == Status::NOT_CHECKED_OUT);
+        check("failed return does not inflate the copy count",
+              lib.books().find("5550000000002")->copiesAvailable == 0);
+    }
+
     // -----------------------------------------------------------------------
     std::cout << "\n========================================\n"
               << "  " << testsPassed << " of " << testsRun << " checks passed\n"

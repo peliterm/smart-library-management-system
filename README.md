@@ -1,8 +1,8 @@
-# Smart Library Management System - Module 5 Deliverable
+# Smart Library Management System - Module 6 Deliverable
 
 CPSC 315 | Michael Pelitera
-Advanced features: borrowing and returning with deadline management, plus a
-recommendation engine. Built on the Module 3/4 inventory and account modules.
+Stable build. All modules implemented, unit and integration tested, with two
+defects found and fixed during Module 6 testing.
 
 ## Build and run
 
@@ -12,7 +12,7 @@ g++ -std=c++17 -Wall -Wextra -o slms src/*.cpp
 ```
 
 The executable runs a test driver covering all modules. Expected output ends
-with `60 of 60 checks passed`.
+with `72 of 72 checks passed`.
 
 ## Files
 
@@ -25,7 +25,7 @@ with `60 of 60 checks passed`.
 | `src/DueDateHeap.h/.cpp` | Binary min-heap on due date with a loan ID to array index map, making arbitrary removal O(log n) instead of O(n). |
 | `src/Recommender.h/.cpp` | Co-borrowing graph (adjacency list, 50-neighbor cap) plus a score BST read by reverse in-order traversal. |
 | `src/LibrarySystem.h/.cpp` | Integration layer. Checkout, return, overdue notices, recommendations, with validation before any write. |
-| `src/main.cpp` | Test driver. 60 checks across nine sections. |
+| `src/main.cpp` | Test driver. 72 checks across ten sections, including a regression suite for the defects found in Module 6. |
 
 ## Design decisions
 
@@ -72,7 +72,28 @@ property and the index map, and `Recommender::validateTree()` checks BST keys
 against inherited ancestor bounds rather than only the immediate parent.
 `LibrarySystem::validateAll()` runs all three.
 
+## Defects found and fixed in Module 6
+
+**1. Orphaned heap entry on a duplicate-title loan.** The loan lookup stored a
+single loan ID per (user, ISBN) pair, which assumed a user could never hold
+two copies of the same title. Nothing in the system enforced that assumption.
+A second checkout overwrote the first loan ID, so the first heap entry could
+never be removed and generated a phantom overdue notice for a book that had
+already been returned. Fixed by storing a list of outstanding loan IDs per
+pair and clearing them oldest-first. Regression test: section 10.
+
+**2. Asymmetric edges after neighbor trimming.** The 50-neighbor cap removed
+dropped edges from one endpoint only. The co-borrowing graph is undirected,
+so every trimmed neighbor still held a return edge to a vertex that had
+forgotten it, leaving the cap unable to bound the walk from that direction.
+Fixed by removing both halves of a dropped edge. Regression test: section 10.
+
+Both defects passed the existing 60-test suite. Neither was found by testing
+components in isolation; both required exercising a full checkout and return
+cycle with inputs the original tests never produced.
+
 ## Verification
 
-- Compiles clean under `-Wall -Wextra`
+- Compiles clean under `-Wall -Wextra -Wpedantic`
 - AddressSanitizer and UndefinedBehaviorSanitizer report no leaks or UB
+- 72 of 72 checks pass, covering unit, integration, stress, and regression cases

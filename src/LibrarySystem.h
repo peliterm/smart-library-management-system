@@ -101,9 +101,15 @@ private:
     int currentDay;
     int nextLoanId;
 
-    // Maps (userId, isbn) to the loan ID, so a return can find the heap
-    // entry without scanning. A user cannot hold two copies of one title.
-    std::unordered_map<std::string, int> loanIdFor;
+    // Maps (userId, isbn) to that user's outstanding loan IDs for the title.
+    //
+    // BUG FIX (Module 6): this was originally a single int, which silently
+    // assumed a user could never hold two copies of one title. Nothing in
+    // the system enforced that. A second checkout overwrote the first loan
+    // ID, orphaning the first heap entry permanently and producing a phantom
+    // overdue notice for a book that had already been returned. Storing a
+    // list of loan IDs and returning them oldest-first fixes it.
+    std::unordered_map<std::string, std::vector<int>> loanIdsFor;
     static std::string loanKey(int userId, const std::string& isbn);
 };
 
